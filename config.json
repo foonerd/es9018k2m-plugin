@@ -1,0 +1,38 @@
+{
+  "boardType": {
+    "type": "string",
+    "value": "none"
+  },
+  "i2cBus": {
+    "type": "number",
+    "value": 1
+  },
+  "i2cAddress": {
+    "type": "number",
+    "value": 72
+  },
+  "balance": {
+    "type": "number",
+    "value": 0
+  },
+  "fir": {
+    "type": "number",
+    "value": 1
+  },
+  "iir": {
+    "type": "number",
+    "value": 0
+  },
+  "deemphasis": {
+    "type": "number",
+    "value": 74
+  },
+  "i2sDpll": {
+    "type": "number",
+    "value": 80
+  },
+  "dsdDpll": {
+    "type": "number",
+    "value": 10
+  }
+}

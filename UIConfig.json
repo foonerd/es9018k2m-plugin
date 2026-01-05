@@ -1,0 +1,305 @@
+{
+  "page": {
+    "label": "ES9018K2M DAC Control"
+  },
+  "sections": [
+    {
+      "id": "overlay_config",
+      "element": "section",
+      "label": "TRANSLATE.OVERLAY_CONFIG",
+      "icon": "fa-microchip",
+      "description": "TRANSLATE.OVERLAY_CONFIG_DESC",
+      "onSave": {
+        "type": "controller",
+        "endpoint": "miscellanea/es9018k2m",
+        "method": "saveOverlaySettings"
+      },
+      "saveButton": {
+        "label": "TRANSLATE.APPLY_OVERLAY",
+        "data": ["boardType"]
+      },
+      "content": [
+        {
+          "id": "overlayStatus",
+          "element": "text",
+          "label": "TRANSLATE.CURRENT_OVERLAY",
+          "value": ""
+        },
+        {
+          "id": "boardType",
+          "element": "select",
+          "label": "TRANSLATE.BOARD_TYPE",
+          "description": "TRANSLATE.BOARD_TYPE_DESC",
+          "value": { "value": "none", "label": "Not Configured" },
+          "options": [
+            { "value": "none", "label": "Not Configured" },
+            { "value": "type-a", "label": "Type A - No Onboard Crystal (needs MCLK from Pi)" },
+            { "value": "type-b", "label": "Type B - Has Onboard Crystal (self-clocked)" }
+          ]
+        },
+        {
+          "id": "reboot_notice",
+          "element": "text",
+          "label": "",
+          "value": "TRANSLATE.REBOOT_REQUIRED_NOTICE"
+        }
+      ]
+    },
+    {
+      "id": "device_status",
+      "element": "section",
+      "label": "TRANSLATE.DEVICE_STATUS",
+      "icon": "fa-check-circle",
+      "description": "",
+      "content": [
+        {
+          "id": "check_device",
+          "element": "button",
+          "label": "TRANSLATE.CHECK_DEVICE",
+          "onClick": {
+            "type": "emit",
+            "message": "callMethod",
+            "data": {
+              "endpoint": "miscellanea/es9018k2m",
+              "method": "checkDeviceStatus",
+              "data": ""
+            }
+          }
+        },
+        {
+          "id": "reset_device",
+          "element": "button",
+          "label": "TRANSLATE.RESET_DEVICE",
+          "onClick": {
+            "type": "emit",
+            "message": "callMethod",
+            "askForConfirm": {
+              "title": "TRANSLATE.CONFIRM",
+              "message": "TRANSLATE.CONFIRM_RESET"
+            },
+            "data": {
+              "endpoint": "miscellanea/es9018k2m",
+              "method": "resetDevice",
+              "data": ""
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "i2c_settings",
+      "element": "section",
+      "label": "TRANSLATE.I2C_SETTINGS",
+      "icon": "fa-cog",
+      "onSave": {
+        "type": "controller",
+        "endpoint": "miscellanea/es9018k2m",
+        "method": "saveI2cSettings"
+      },
+      "saveButton": {
+        "label": "TRANSLATE.SAVE",
+        "data": ["i2cBus", "i2cAddress"]
+      },
+      "content": [
+        {
+          "id": "i2cBus",
+          "element": "input",
+          "type": "number",
+          "label": "TRANSLATE.I2C_BUS",
+          "description": "TRANSLATE.I2C_BUS_DESC",
+          "value": 1,
+          "attributes": [
+            { "placeholder": "1" },
+            { "min": 0 },
+            { "max": 10 }
+          ]
+        },
+        {
+          "id": "i2cAddress",
+          "element": "input",
+          "type": "text",
+          "label": "TRANSLATE.I2C_ADDRESS",
+          "description": "TRANSLATE.I2C_ADDRESS_DESC",
+          "value": "0x48",
+          "attributes": [
+            { "placeholder": "0x48" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "balance_settings",
+      "element": "section",
+      "label": "TRANSLATE.BALANCE",
+      "icon": "fa-balance-scale",
+      "onSave": {
+        "type": "controller",
+        "endpoint": "miscellanea/es9018k2m",
+        "method": "saveBalanceSettings"
+      },
+      "saveButton": {
+        "label": "TRANSLATE.SAVE",
+        "data": ["balance"]
+      },
+      "content": [
+        {
+          "id": "balance",
+          "element": "equalizer",
+          "label": "TRANSLATE.BALANCE_ADJUST",
+          "description": "TRANSLATE.BALANCE_DESC",
+          "config": {
+            "orientation": "horizontal",
+            "bars": [
+              {
+                "min": -40,
+                "max": 40,
+                "step": 1,
+                "value": 0,
+                "tooltip": "always"
+              }
+            ]
+          }
+        },
+        {
+          "id": "reset_balance",
+          "element": "button",
+          "label": "TRANSLATE.RESET_BALANCE",
+          "onClick": {
+            "type": "emit",
+            "message": "callMethod",
+            "data": {
+              "endpoint": "miscellanea/es9018k2m",
+              "method": "resetBalance",
+              "data": ""
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "filter_settings",
+      "element": "section",
+      "label": "TRANSLATE.DIGITAL_FILTERS",
+      "icon": "fa-sliders",
+      "onSave": {
+        "type": "controller",
+        "endpoint": "miscellanea/es9018k2m",
+        "method": "saveFilterSettings"
+      },
+      "saveButton": {
+        "label": "TRANSLATE.SAVE",
+        "data": ["fir", "iir", "deemphasis"]
+      },
+      "content": [
+        {
+          "id": "fir",
+          "element": "select",
+          "label": "TRANSLATE.FIR_FILTER",
+          "description": "TRANSLATE.FIR_DESC",
+          "value": { "value": 1, "label": "Fast Roll-Off" },
+          "options": [
+            { "value": 0, "label": "Slow Roll-Off" },
+            { "value": 1, "label": "Fast Roll-Off" },
+            { "value": 2, "label": "Minimum Phase" },
+            { "value": 3, "label": "Bypass" }
+          ]
+        },
+        {
+          "id": "iir",
+          "element": "select",
+          "label": "TRANSLATE.IIR_FILTER",
+          "description": "TRANSLATE.IIR_DESC",
+          "value": { "value": 0, "label": "47K (PCM)" },
+          "options": [
+            { "value": 0, "label": "47K (PCM)" },
+            { "value": 1, "label": "50K (DSD)" },
+            { "value": 2, "label": "60K (DSD)" },
+            { "value": 3, "label": "70K (DSD)" },
+            { "value": 4, "label": "Bypass" }
+          ]
+        },
+        {
+          "id": "deemphasis",
+          "element": "select",
+          "label": "TRANSLATE.DEEMPHASIS",
+          "description": "TRANSLATE.DEEMPHASIS_DESC",
+          "value": { "value": 74, "label": "Off" },
+          "options": [
+            { "value": 74, "label": "Off" },
+            { "value": 10, "label": "32 kHz" },
+            { "value": 26, "label": "44.1 kHz" },
+            { "value": 42, "label": "48 kHz" }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "dpll_settings",
+      "element": "section",
+      "label": "TRANSLATE.DPLL",
+      "icon": "fa-signal",
+      "description": "TRANSLATE.DPLL_DESC",
+      "onSave": {
+        "type": "controller",
+        "endpoint": "miscellanea/es9018k2m",
+        "method": "saveDpllSettings"
+      },
+      "saveButton": {
+        "label": "TRANSLATE.SAVE",
+        "data": ["i2sDpll", "dsdDpll"]
+      },
+      "content": [
+        {
+          "id": "i2sDpll",
+          "element": "select",
+          "label": "TRANSLATE.I2S_DPLL",
+          "description": "TRANSLATE.I2S_DPLL_DESC",
+          "value": { "value": 80, "label": "5" },
+          "options": [
+            { "value": 0, "label": "Off" },
+            { "value": 16, "label": "1 (lowest)" },
+            { "value": 32, "label": "2" },
+            { "value": 48, "label": "3" },
+            { "value": 64, "label": "4" },
+            { "value": 80, "label": "5" },
+            { "value": 96, "label": "6" },
+            { "value": 112, "label": "7" },
+            { "value": 128, "label": "8" },
+            { "value": 144, "label": "9" },
+            { "value": 160, "label": "10" },
+            { "value": 176, "label": "11" },
+            { "value": 192, "label": "12" },
+            { "value": 208, "label": "13" },
+            { "value": 224, "label": "14" },
+            { "value": 240, "label": "15 (highest)" }
+          ]
+        },
+        {
+          "id": "dsdDpll",
+          "element": "select",
+          "label": "TRANSLATE.DSD_DPLL",
+          "description": "TRANSLATE.DSD_DPLL_DESC",
+          "value": { "value": 10, "label": "10" },
+          "options": [
+            { "value": 0, "label": "Off" },
+            { "value": 1, "label": "1 (lowest)" },
+            { "value": 2, "label": "2" },
+            { "value": 3, "label": "3" },
+            { "value": 4, "label": "4" },
+            { "value": 5, "label": "5" },
+            { "value": 6, "label": "6" },
+            { "value": 7, "label": "7" },
+            { "value": 8, "label": "8" },
+            { "value": 9, "label": "9" },
+            { "value": 10, "label": "10" },
+            { "value": 11, "label": "11" },
+            { "value": 12, "label": "12" },
+            { "value": 13, "label": "13" },
+            { "value": 14, "label": "14" },
+            { "value": 15, "label": "15 (highest)" }
+          ]
+        }
+      ]
+    }
+  ]
+}

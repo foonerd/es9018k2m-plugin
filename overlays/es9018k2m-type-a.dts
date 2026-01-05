@@ -1,0 +1,50 @@
+/dts-v1/;
+/plugin/;
+
+// ES9018K2M Type-A: Boards WITHOUT onboard oscillator (need MCLK from Pi)
+// Uses fixed 64FS bitclock ratio to prevent bit-depth switching issues
+
+/ {
+    compatible = "brcm,bcm2711", "brcm,bcm2835";
+
+    fragment@0 {
+        target = <&i2s_clk_producer>;
+        __overlay__ {
+            status = "okay";
+        };
+    };
+
+    fragment@1 {
+        target-path = "/";
+        __overlay__ {
+            es9018_dac: es9018-sound {
+                compatible = "simple-audio-card";
+                simple-audio-card,name = "ES9018K2M-MCLK";
+                simple-audio-card,format = "i2s";
+                simple-audio-card,mclk-fs = <256>;
+                simple-audio-card,bitclock-ratio = <64>;
+
+                simple-audio-card,cpu {
+                    sound-dai = <&i2s_clk_producer>;
+                };
+
+                simple-audio-card,codec {
+                    sound-dai = <&es9018_codec>;
+                    clocks = <&clk_gpio4>;
+                    clock-names = "mclk";
+                };
+            };
+
+            es9018_codec: es9018_codec@0 {
+                compatible = "linux,spdif-dit";
+                #sound-dai-cells = <0>;
+            };
+
+            clk_gpio4: clk-gpio4 {
+                compatible = "fixed-clock";
+                #clock-cells = <0>;
+                clock-frequency = <11289600>;
+            };
+        };
+    };
+};

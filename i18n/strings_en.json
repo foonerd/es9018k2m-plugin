@@ -1,0 +1,68 @@
+{
+  "PLUGIN_NAME": "ES9018K2M DAC Control",
+
+  "OVERLAY_CONFIG": "DAC Overlay Configuration",
+  "OVERLAY_CONFIG_DESC": "Configure the I2S overlay for your ES9018K2M board.",
+  "CURRENT_OVERLAY": "Current Status",
+  "BOARD_TYPE": "Board Type",
+  "BOARD_TYPE_DESC": "Select based on whether your DAC board has an onboard crystal oscillator. Type A boards need MCLK signal from Raspberry Pi GPIO4. Type B boards generate their own clock.",
+  "APPLY_OVERLAY": "Apply and Reboot",
+  "REBOOT_REQUIRED_NOTICE": "Changing the overlay requires a reboot to take effect.",
+
+  "OVERLAY_NONE_DETECTED": "No DAC overlay detected",
+  "SELECT_DAC_FIRST": "Please select i2s-dac in Volumio Playback Options first",
+  "SELECT_DAC_FIRST_DESC": "No DAC overlay is configured. Please go to Volumio Settings > Playback Options > I2S DAC, select 'i2s-dac' (or 'Generic I2S DAC'), and reboot. Then return here to configure the ES9018K2M overlay.",
+
+  "OVERLAY_READY": "DAC overlay detected - ready to configure",
+  "OVERLAY_READY_DESC": "A compatible DAC overlay is configured. Select your board type below and click 'Apply and Reboot' to enable ES9018K2M support with fixed 64FS bitclock.",
+
+  "OVERLAY_CONFIGURED": "ES9018K2M overlay active",
+  "OVERLAY_CONFIGURED_DESC": "ES9018K2M overlay is configured and active. You can change board type if needed, or proceed to configure the DAC settings below.",
+
+  "OVERLAY_OTHER": "Incompatible DAC overlay detected",
+  "OVERLAY_OTHER_DESC": "An incompatible DAC overlay is configured. Please go to Volumio Settings > Playback Options > I2S DAC, select 'i2s-dac' (or 'Generic I2S DAC'), and reboot. Then return here to configure the ES9018K2M overlay.",
+
+  "OVERLAY_APPLIED": "Overlay configuration saved. Please reboot for changes to take effect.",
+  "OVERLAY_TYPE_A": "ES9018K2M Type A (MCLK from Pi)",
+  "OVERLAY_TYPE_B": "ES9018K2M Type B (Self-clocked)",
+
+  "DEVICE_STATUS": "Device Status",
+  "CHECK_DEVICE": "Check Device",
+  "RESET_DEVICE": "Reset to Defaults",
+  "DEVICE_FOUND": "ES9018K2M detected and ready",
+  "DEVICE_NOT_FOUND": "ES9018K2M not detected. Check I2C connection, address, and ensure overlay is configured and system has been rebooted.",
+  "DEVICE_RESET": "Device reset to factory defaults",
+
+  "I2C_SETTINGS": "I2C Configuration",
+  "I2C_BUS": "I2C Bus",
+  "I2C_BUS_DESC": "I2C bus number (usually 1 for Raspberry Pi)",
+  "I2C_ADDRESS": "I2C Address",
+  "I2C_ADDRESS_DESC": "Device address in hex (default: 0x48). Common addresses: 0x48, 0x49, 0x4A, 0x4B",
+
+  "BALANCE": "Channel Balance",
+  "BALANCE_ADJUST": "Balance",
+  "BALANCE_DESC": "Adjust left/right channel balance. Negative values reduce right channel, positive values reduce left channel. Range: -40 to +40 (0.5dB steps).",
+  "RESET_BALANCE": "Reset Balance",
+  "BALANCE_RESET": "Balance reset to center",
+
+  "DIGITAL_FILTERS": "Digital Filters",
+  "FIR_FILTER": "FIR Filter",
+  "FIR_DESC": "Finite Impulse Response filter shape. Fast roll-off is default. Minimum phase may reduce pre-ringing.",
+  "IIR_FILTER": "IIR Bandwidth",
+  "IIR_DESC": "Infinite Impulse Response filter bandwidth. Use 47K for PCM audio, higher values for DSD content.",
+  "DEEMPHASIS": "De-emphasis",
+  "DEEMPHASIS_DESC": "De-emphasis filter for pre-emphasized recordings. Usually leave Off unless playing vintage CDs.",
+
+  "DPLL": "DPLL Jitter Reduction",
+  "DPLL_DESC": "Digital Phase-Locked Loop settings for jitter reduction. Higher values provide more jitter reduction but may cause issues with some sources.",
+  "I2S_DPLL": "I2S/PCM DPLL",
+  "I2S_DPLL_DESC": "DPLL bandwidth for I2S/PCM sources. Level 5 is a good starting point.",
+  "DSD_DPLL": "DSD DPLL",
+  "DSD_DPLL_DESC": "DPLL bandwidth for DSD sources.",
+
+  "SAVE": "Save",
+  "CONFIRM": "Confirm",
+  "CONFIRM_RESET": "Reset all DAC settings to factory defaults?",
+  "SETTINGS_SAVED": "Settings saved",
+  "REBOOT_REQUIRED": "Reboot Required"
+}
