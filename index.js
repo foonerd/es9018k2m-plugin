@@ -270,12 +270,12 @@ ControllerES9018K2M.prototype.checkDevice = function() {
   // Read status register (64) to detect ES9018K2M
   self.i2cRead(64)
     .then(function(status) {
-      // Check chip ID bits (bits 4:2 should be 000 for ES9018K2M)
-      const chipId = (status >> 2) & 0x07;
-      const isES9018K2M = (chipId === 0);
+      // Check chip ID bits (bits 4:2 should be 100 for ES9018K2M)
+      const isES9018K2M = (status & 0x1C) === 0x10;
       if (isES9018K2M) {
-        const revision = (status & 0x03);
-        self.logger.info('ES9018K2M: Found device, chip revision ' + revision);
+        const revision = status & 0x03;
+        self.logger.info('ES9018K2M: Found device (reg64=0x' + 
+          status.toString(16) + ', revision=' + revision + ')');
       }
       defer.resolve(isES9018K2M);
     })
