@@ -33,7 +33,7 @@
             "type": "emit",
             "message": "callMethod",
             "data": {
-              "endpoint": "miscellanea/es9018k2m",
+              "endpoint": "system_hardware/es9018k2m",
               "method": "checkDeviceStatus",
               "data": ""
             }
@@ -51,7 +51,7 @@
               "message": "TRANSLATE.CONFIRM_RESET"
             },
             "data": {
-              "endpoint": "miscellanea/es9018k2m",
+              "endpoint": "system_hardware/es9018k2m",
               "method": "resetDevice",
               "data": ""
             }
@@ -66,7 +66,7 @@
       "icon": "fa-cog",
       "onSave": {
         "type": "controller",
-        "endpoint": "miscellanea/es9018k2m",
+        "endpoint": "system_hardware/es9018k2m",
         "method": "saveI2cSettings"
       },
       "saveButton": {
@@ -107,7 +107,7 @@
       "icon": "fa-balance-scale",
       "onSave": {
         "type": "controller",
-        "endpoint": "miscellanea/es9018k2m",
+        "endpoint": "system_hardware/es9018k2m",
         "method": "saveBalanceSettings"
       },
       "saveButton": {
@@ -141,7 +141,7 @@
             "type": "emit",
             "message": "callMethod",
             "data": {
-              "endpoint": "miscellanea/es9018k2m",
+              "endpoint": "system_hardware/es9018k2m",
               "method": "resetBalance",
               "data": ""
             }
@@ -156,7 +156,7 @@
       "icon": "fa-sliders",
       "onSave": {
         "type": "controller",
-        "endpoint": "miscellanea/es9018k2m",
+        "endpoint": "system_hardware/es9018k2m",
         "method": "saveFilterSettings"
       },
       "saveButton": {
@@ -214,7 +214,7 @@
       "description": "TRANSLATE.DPLL_DESC",
       "onSave": {
         "type": "controller",
-        "endpoint": "miscellanea/es9018k2m",
+        "endpoint": "system_hardware/es9018k2m",
         "method": "saveDpllSettings"
       },
       "saveButton": {
