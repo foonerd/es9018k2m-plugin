@@ -1,36 +1,26 @@
 {
   "name": "es9018k2m",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Hardware control for ES9018K2M DAC via I2C with automatic volume synchronization",
   "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "author": "Volumio Team",
-  "contributors": [
-    {
-      "name": "Chris Song",
-      "url": "https://github.com/ChrisPanda/volumio-es9018k2m-plugin"
-    },
-    {
-      "name": "Grey_bird (DanyHovard)",
-      "url": "https://github.com/DanyHovard/es9018k2m_volumio_I2C_control"
-    }
-  ],
+  "author": "Just a Nerd",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/volumio/volumio-plugins-sources-bookworm"
+    "url": "https://github.com/foonerd/es9018k2m-plugin"
   },
   "volumio_info": {
     "prettyName": "ES9018K2M DAC Control",
     "icon": "fa-sliders",
-    "plugin_type": "miscellanea",
-    "architectures": ["armhf", "aarch64"],
+    "plugin_type": "system_hardware",
+    "architectures": ["armhf"],
     "os": ["bookworm"],
     "has_configuration": true,
-    "details": "Hardware control for ES9018K2M DAC via I2C. Automatic volume synchronization with Volumio, digital filters (FIR/IIR), DPLL jitter reduction, balance control, and pre-compiled device tree overlays for boards with and without onboard oscillators.",
-    "changelog": "v1.0.0 - Initial release with integrated volume sync, no external dependencies"
+    "details": "Hardware control for ES9018K2M DAC via I2C. Automatic volume synchronization with Volumio, digital filters (FIR/IIR), DPLL jitter reduction, and balance control. Works with any ES9018K2M-based DAC HAT using the standard i2s-dac overlay.",
+    "changelog": "v1.1.0 - Simplified architecture: removed overlay management, added optimal init registers from ES9038Q2M, hardware soft-start for pop-free playback"
   },
   "engines": {
     "node": ">=20",

@@ -26,7 +26,6 @@ function ControllerES9018K2M(context) {
   // State tracking for volume sync
   self.lastVolume = null;
   self.lastStatus = null;
-  self.lastUri = null;
 
   // Balance offsets
   self.lBal = 0;
@@ -38,7 +37,6 @@ function ControllerES9018K2M(context) {
   self.reg21 = 0x00;  // GPIO and OSF bypass
 
   // Timing constants
-  self.MUTE_DELAY_MS = 150;  // DAC stabilization on track change
   self.I2C_THROTTLE_MS = 30; // Minimum between I2C operations
   self.lastI2cWrite = 0;
 }
@@ -175,83 +173,30 @@ ControllerES9018K2M.prototype.getUIConfig = function() {
     __dirname + '/UIConfig.json'
   )
   .then(function(uiconf) {
-    // Get overlay status first
-    return self.getOverlayStatus()
-      .then(function(overlayInfo) {
-        // Section 0: Overlay Configuration
-        let statusText = '';
-        let showBoardTypeSelector = false;
-        
-        switch (overlayInfo.state) {
-          case 'none':
-            statusText = self.getI18nString('OVERLAY_NONE_DETECTED');
-            uiconf.sections[0].description = self.getI18nString('SELECT_DAC_FIRST_DESC');
-            showBoardTypeSelector = false;
-            break;
-            
-          case 'ready':
-            statusText = self.getI18nString('OVERLAY_READY') + ' (' + overlayInfo.overlay + ')';
-            uiconf.sections[0].description = self.getI18nString('OVERLAY_READY_DESC');
-            showBoardTypeSelector = true;
-            break;
-            
-          case 'configured':
-            statusText = self.getI18nString('OVERLAY_CONFIGURED') + ' (' + overlayInfo.overlay + ')';
-            uiconf.sections[0].description = self.getI18nString('OVERLAY_CONFIGURED_DESC');
-            showBoardTypeSelector = true;
-            break;
-            
-          case 'other':
-            statusText = self.getI18nString('OVERLAY_OTHER') + ' (' + overlayInfo.overlay + ')';
-            uiconf.sections[0].description = self.getI18nString('OVERLAY_OTHER_DESC');
-            showBoardTypeSelector = false;
-            break;
-            
-          default:
-            statusText = 'Unknown state';
-            showBoardTypeSelector = false;
-        }
-        
-        uiconf.sections[0].content[0].value = statusText;
-        
-        // Hide board type selector if not applicable
-        if (!showBoardTypeSelector) {
-          uiconf.sections[0].content[1].hidden = true;
-          uiconf.sections[0].content[2].hidden = true;
-          // Hide save button by removing onSave
-          delete uiconf.sections[0].saveButton;
-        } else {
-          // Set board type dropdown value
-          const savedBoardType = overlayInfo.boardType || self.config.get('boardType', 'none');
-          const boardTypeOptions = uiconf.sections[0].content[1].options;
-          uiconf.sections[0].content[1].value = boardTypeOptions.find(function(opt) {
-            return opt.value === savedBoardType;
-          }) || boardTypeOptions[0];
-        }
+    // Section 0: Prerequisites (static text, no dynamic content)
 
-        // Section 1: Device Status
-        uiconf.sections[1].description = self.deviceFound
-          ? self.getI18nString('DEVICE_FOUND')
-          : self.getI18nString('DEVICE_NOT_FOUND');
+    // Section 1: Device Status
+    uiconf.sections[1].description = self.deviceFound
+      ? self.getI18nString('DEVICE_FOUND')
+      : self.getI18nString('DEVICE_NOT_FOUND');
 
-        // Section 2: I2C Settings
-        uiconf.sections[2].content[0].value = self.i2cBus;
-        uiconf.sections[2].content[1].value = '0x' + self.i2cAddress.toString(16).toUpperCase();
+    // Section 2: I2C Settings
+    uiconf.sections[2].content[0].value = self.i2cBus;
+    uiconf.sections[2].content[1].value = '0x' + self.i2cAddress.toString(16).toUpperCase();
 
-        // Section 3: Balance
-        uiconf.sections[3].content[0].value = self.config.get('balance', 0);
+    // Section 3: Balance
+    uiconf.sections[3].content[0].value = self.config.get('balance', 0);
 
-        // Section 4: Digital Filters
-        uiconf.sections[4].content[0].value = self.getFirOption(self.config.get('fir', 1));
-        uiconf.sections[4].content[1].value = self.getIirOption(self.config.get('iir', 0));
-        uiconf.sections[4].content[2].value = self.getDeemphasisOption(self.config.get('deemphasis', 0x4A));
+    // Section 4: Digital Filters
+    uiconf.sections[4].content[0].value = self.getFirOption(self.config.get('fir', 1));
+    uiconf.sections[4].content[1].value = self.getIirOption(self.config.get('iir', 0));
+    uiconf.sections[4].content[2].value = self.getDeemphasisOption(self.config.get('deemphasis', 0x4A));
 
-        // Section 5: DPLL
-        uiconf.sections[5].content[0].value = self.getDpllOption(self.config.get('i2sDpll', 0x50));
-        uiconf.sections[5].content[1].value = self.getDpllOption(self.config.get('dsdDpll', 0x0A));
+    // Section 5: DPLL
+    uiconf.sections[5].content[0].value = self.getDpllOption(self.config.get('i2sDpll', 0x50));
+    uiconf.sections[5].content[1].value = self.getDpllOption(self.config.get('dsdDpll', 0x0A));
 
-        defer.resolve(uiconf);
-      });
+    defer.resolve(uiconf);
   })
   .fail(function(err) {
     self.logger.error('ES9018K2M: getUIConfig failed: ' + err);
@@ -325,11 +270,12 @@ ControllerES9018K2M.prototype.checkDevice = function() {
   // Read status register (64) to detect ES9018K2M
   self.i2cRead(64)
     .then(function(status) {
-      // Check chip ID bits (bits 4:2 should be 100 for ES9018K2M)
-      const isES9018K2M = (status & 0x1C) === 0x10;
+      // Check chip ID bits (bits 4:2 should be 000 for ES9018K2M)
+      const chipId = (status >> 2) & 0x07;
+      const isES9018K2M = (chipId === 0);
       if (isES9018K2M) {
-        const revision = (status & 0x20) ? 'V' : 'W';
-        self.logger.info('ES9018K2M: Found device, revision ' + revision);
+        const revision = (status & 0x03);
+        self.logger.info('ES9018K2M: Found device, chip revision ' + revision);
       }
       defer.resolve(isES9018K2M);
     })
@@ -347,20 +293,75 @@ ControllerES9018K2M.prototype.initDevice = function() {
   // Mute during initialization
   self.setMute(true);
 
-  // System settings (register 0)
+  // -------------------------------------------------------------------------
+  // Optimal register configuration adapted from ES9038Q2M (Darmur)
+  // Register 0x0E is KEY for hardware-level pop prevention during FS changes
+  // -------------------------------------------------------------------------
+
+  // Register 0x00: System settings
+  // Bit 0: OSC_DRV - oscillator drive strength (0 = normal)
+  // Bits 1-7: Reserved
   self.i2cWrite(0x00, 0x00);
 
-  // Automute time disabled (register 4)
-  self.i2cWrite(0x04, 0x00);
+  // Register 0x01: Input configuration
+  // Bits 7:6 = 11: 32-bit I2S
+  // Bits 5:4 = 00: I2S mode
+  // Bits 3:2 = 01: auto-detect serial/DSD
+  // Bits 1:0 = 00: serial input
+  self.i2cWrite(0x01, 0xC4);
 
-  // Automute level (register 5)
+  // Register 0x04: Automute time
+  // Value 0x10 = ~3s at 44.1kHz, ~0.7s at 192kHz
+  self.i2cWrite(0x04, 0x10);
+
+  // Register 0x05: Automute level
+  // Value 0x68 = -104dB threshold
   self.i2cWrite(0x05, 0x68);
 
-  // Initial volume
+  // Register 0x06: De-emphasis and volume ramp rate
+  // Bit 7: auto_deemph off
+  // Bit 6: deemph_bypass disabled
+  // Bits 5:4: deemph_sel = 32kHz
+  // Bit 3: DoP enable off
+  // Bits 2:0: volume_rate = fastest (111)
+  self.i2cWrite(0x06, 0x47);
+
+  // Register 0x08: GPIO configuration
+  // Bits 7:4 = 0000: GPIO2 = automute status
+  // Bits 3:0 = 0001: GPIO1 = lock status
+  self.i2cWrite(0x08, 0x01);
+
+  // Register 0x0C: DPLL/ASRC settings
+  // Bits 7:4: I2S DPLL bandwidth (default 5)
+  // Bits 3:0: DSD DPLL bandwidth (default 15 = max)
+  self.i2cWrite(0x0C, 0x5F);
+
+  // Register 0x0E: Soft start configuration - KEY FOR POP PREVENTION
+  // Bit 7 = 1: soft_start enabled, ramps to AVCC/2
+  // Bit 3 = 1: soft_start_on_lock = always (ramp on DPLL lock/unlock)
+  // Bits 2:0 = 010: soft_start_time = default
+  // This allows hardware to handle FS changes smoothly without software mute
+  self.i2cWrite(0x0E, 0x8A);
+
+  // Register 0x15: GPIO and oversampling filter bypass
+  // Bit 0 = 0: Use internal OSF (no bypass)
+  // Bit 2 = 0: Use internal IIR (no bypass)
+  self.i2cWrite(0x15, 0x00);
+
+  // Register 0x1B (27): ASRC and volume latch
+  // Bit 7 = 1: ASRC enabled
+  // Bit 6 = 1: sync_volume off
+  // Bit 5 = 0: latch_volume on (both channels update together)
+  // Bit 4 = 1: 18dB gain off
+  self.i2cWrite(0x1B, 0xD4);
+
+  // Initialize volume to 90%
   self.setVolume(90);
 
-  // Unmute
+  // Unmute after init complete
   self.setMute(false);
+
+  self.logger.info('ES9018K2M: Device initialized with optimal register settings');
 };
 
 ControllerES9018K2M.prototype.applySettings = function() {
@@ -409,26 +410,13 @@ ControllerES9018K2M.prototype.handleStateChange = function(state) {
 
   const status = state.status;
   const volume = state.volume;
-  const uri = state.uri;
   const mute = state.mute;
 
-  // Track change detection - mute briefly to prevent pops
-  const trackChanged = (uri !== self.lastUri) && (uri !== undefined);
-  if (trackChanged && status === 'play') {
-    self.logger.info('ES9018K2M: Track change detected, muting briefly');
-    self.setMute(true);
-    setTimeout(function() {
-      if (!state.mute) {
-        self.setMute(false);
-      }
-    }, self.MUTE_DELAY_MS);
-  }
-  self.lastUri = uri;
-
-  // Status change - mute on stop/pause
+  // Status change - mute on stop/pause, unmute on play
+  // No track change mute needed - register 0x0E soft start handles pops
   if (status !== 'play' && self.lastStatus === 'play') {
     self.setMute(true);
-  } else if (status === 'play' && self.lastStatus !== 'play' && !trackChanged) {
+  } else if (status === 'play' && self.lastStatus !== 'play') {
     if (!mute) {
       self.setMute(false);
     }
@@ -454,22 +442,26 @@ ControllerES9018K2M.prototype.handleStateChange = function(state) {
 ControllerES9018K2M.prototype.setVolume = function(vol) {
   const self = this;
 
-  const attenuation = 100 - Math.max(0, Math.min(100, vol));
+  // ES9018K2M: 0 = 0dB (max), 255 = -127.5dB (mute)
+  // Volumio: 0 = min, 100 = max
+  const attenuation = Math.round((100 - Math.max(0, Math.min(100, vol))) * 2.55);
 
-  // Left channel (register 15)
-  self.i2cWrite(0x0F, attenuation + self.lBal);
+  // Left channel (register 15) with balance offset
+  const leftAtten = Math.min(255, attenuation + self.lBal);
+  self.i2cWrite(0x0F, leftAtten);
 
-  // Right channel (register 16)
-  self.i2cWrite(0x10, attenuation + self.rBal);
+  // Right channel (register 16) with balance offset
+  const rightAtten = Math.min(255, attenuation + self.rBal);
+  self.i2cWrite(0x10, rightAtten);
 };
 
 ControllerES9018K2M.prototype.setMute = function(mute) {
   const self = this;
 
   if (mute) {
-    self.reg7 = self.reg7 | 0x03;  // Set bits 0 and 1
+    self.reg7 = self.reg7 | 0x01;  // Set bit 0 (mute)
   } else {
-    self.reg7 = self.reg7 & 0xFC;  // Clear bits 0 and 1
+    self.reg7 = self.reg7 & 0xFE;  // Clear bit 0 (unmute)
   }
 
   self.i2cWrite(0x07, self.reg7);
@@ -743,246 +735,6 @@ ControllerES9018K2M.prototype.getDpllOption = function(value) {
   const labels = ['Off', '1', '2', '3', '4', '5', '6', '7', 
                   '8', '9', '10', '11', '12', '13', '14', '15'];
   return { value: value, label: labels[level] || 'Unknown' };
-};
-
-// ---------------------------------------------------------------------------
-// Overlay Configuration
-// ---------------------------------------------------------------------------
-
-// Overlay states:
-// 'none'      - No DAC overlay in config.txt - user must select i2s-dac first
-// 'ready'     - i2s-dac or hifiberry-dac present - can be replaced with our overlay
-// 'configured'- es9018k2m overlay present - plugin ready to use
-// 'other'     - Some other DAC overlay - warn user
-
-ControllerES9018K2M.prototype.getOverlayStatus = function() {
-  const self = this;
-  const defer = libQ.defer();
-
-  const configPath = '/boot/config.txt';
-  
-  // DAC overlays that can be replaced
-  const replaceableDacOverlays = ['hifiberry-dac', 'i2s-dac', 'rpi-dac'];
-  
-  // Our overlays
-  const es9018Overlays = ['es9018k2m-type-a', 'es9018k2m-type-b'];
-  
-  // Other DAC overlays we should warn about
-  const otherDacOverlays = ['allo-boss-dac', 'allo-digione', 'allo-piano-dac', 
-    'iqaudio-dac', 'justboom-dac', 'hifiberry-dacplus', 'hifiberry-digi',
-    'allo-boss2-dac', 'allo-katana-dac'];
-
-  fs.readFile(configPath, 'utf8', function(err, data) {
-    if (err) {
-      self.logger.error('ES9018K2M: Cannot read /boot/config.txt: ' + err);
-      defer.resolve({
-        state: 'error',
-        overlay: null,
-        boardType: null,
-        message: 'Cannot read /boot/config.txt'
-      });
-      return;
-    }
-
-    const lines = data.split('\n');
-    let foundOverlay = null;
-    let state = 'none';
-    let boardType = null;
-
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i].trim();
-      
-      // Skip comments
-      if (line.startsWith('#')) continue;
-      
-      if (line.startsWith('dtoverlay=')) {
-        const overlay = line.substring(10).split(',')[0];
-        
-        if (es9018Overlays.indexOf(overlay) !== -1) {
-          foundOverlay = overlay;
-          state = 'configured';
-          boardType = overlay === 'es9018k2m-type-a' ? 'type-a' : 'type-b';
-          break;
-        } else if (replaceableDacOverlays.indexOf(overlay) !== -1) {
-          foundOverlay = overlay;
-          state = 'ready';
-        } else if (otherDacOverlays.indexOf(overlay) !== -1) {
-          foundOverlay = overlay;
-          state = 'other';
-        }
-      }
-    }
-
-    defer.resolve({
-      state: state,
-      overlay: foundOverlay,
-      boardType: boardType
-    });
-  });
-
-  return defer.promise;
-};
-
-ControllerES9018K2M.prototype.saveOverlaySettings = function(data) {
-  const self = this;
-  const defer = libQ.defer();
-
-  const boardType = data.boardType ? data.boardType.value : 'none';
-  
-  if (boardType === 'none') {
-    self.commandRouter.pushToastMessage('warning',
-      self.getI18nString('PLUGIN_NAME'),
-      'Please select a board type');
-    defer.resolve();
-    return defer.promise;
-  }
-
-  // First check current state
-  self.getOverlayStatus()
-    .then(function(status) {
-      if (status.state === 'none') {
-        self.commandRouter.pushToastMessage('error',
-          self.getI18nString('PLUGIN_NAME'),
-          self.getI18nString('SELECT_DAC_FIRST'));
-        defer.resolve();
-        return;
-      }
-
-      if (status.state === 'other') {
-        self.commandRouter.pushToastMessage('error',
-          self.getI18nString('PLUGIN_NAME'),
-          'Incompatible DAC overlay detected: ' + status.overlay + '. Please select i2s-dac first.');
-        defer.resolve();
-        return;
-      }
-
-      const overlayName = 'es9018k2m-' + boardType;
-      const configPath = '/boot/config.txt';
-
-      // DAC overlays to replace
-      const replaceableOverlays = ['hifiberry-dac', 'i2s-dac', 'rpi-dac', 
-        'es9018k2m-type-a', 'es9018k2m-type-b'];
-
-      self.logger.info('ES9018K2M: Applying overlay ' + overlayName + ' to /boot/config.txt');
-
-      fs.readFile(configPath, 'utf8', function(err, data) {
-        if (err) {
-          self.logger.error('ES9018K2M: Cannot read /boot/config.txt: ' + err);
-          self.commandRouter.pushToastMessage('error',
-            self.getI18nString('PLUGIN_NAME'),
-            'Cannot read /boot/config.txt');
-          defer.reject(err);
-          return;
-        }
-
-        const lines = data.split('\n');
-        let modified = false;
-        let overlayReplaced = false;
-
-        const newLines = lines.map(function(line) {
-          const trimmed = line.trim();
-          
-          // Skip already commented lines
-          if (trimmed.startsWith('#')) return line;
-          
-          if (trimmed.startsWith('dtoverlay=')) {
-            const overlay = trimmed.substring(10).split(',')[0];
-            
-            if (replaceableOverlays.indexOf(overlay) !== -1) {
-              modified = true;
-              
-              // Replace first matching overlay, comment out others
-              if (!overlayReplaced) {
-                overlayReplaced = true;
-                return 'dtoverlay=' + overlayName;
-              } else {
-                return '# ' + line + ' # Replaced by ES9018K2M plugin';
-              }
-            }
-          }
-          return line;
-        });
-
-        // If no overlay was replaced but we're in ready state, something is wrong
-        if (!overlayReplaced && status.state === 'ready') {
-          self.logger.error('ES9018K2M: Could not find overlay to replace');
-          self.commandRouter.pushToastMessage('error',
-            self.getI18nString('PLUGIN_NAME'),
-            'Could not find overlay to replace');
-          defer.reject(new Error('Overlay not found'));
-          return;
-        }
-
-        if (!modified) {
-          // Already configured with correct overlay
-          if (status.state === 'configured' && status.boardType === boardType) {
-            self.commandRouter.pushToastMessage('info',
-              self.getI18nString('PLUGIN_NAME'),
-              'Overlay already configured correctly');
-            defer.resolve();
-            return;
-          }
-        }
-
-        const newContent = newLines.join('\n');
-
-        // Remount boot partition read-write and write config
-        exec('mount -o remount,rw /boot', function(mountErr) {
-          if (mountErr) {
-            self.logger.warn('ES9018K2M: mount remount warning: ' + mountErr);
-            // Continue anyway - might already be rw
-          }
-
-          fs.writeFile(configPath, newContent, 'utf8', function(writeErr) {
-            if (writeErr) {
-              self.logger.error('ES9018K2M: Failed to write /boot/config.txt: ' + writeErr);
-              self.commandRouter.pushToastMessage('error',
-                self.getI18nString('PLUGIN_NAME'),
-                'Failed to write /boot/config.txt');
-              defer.reject(writeErr);
-              return;
-            }
-
-            self.config.set('boardType', boardType);
-
-            self.commandRouter.pushToastMessage('success',
-              self.getI18nString('PLUGIN_NAME'),
-              self.getI18nString('OVERLAY_APPLIED'));
-
-            // Prompt for reboot
-            self.commandRouter.broadcastMessage('closeAllModals', '');
-            setTimeout(function() {
-              self.commandRouter.broadcastMessage('openModal', {
-                title: self.getI18nString('REBOOT_REQUIRED'),
-                message: self.getI18nString('OVERLAY_APPLIED'),
-                buttons: [
-                  {
-                    name: 'Reboot Now',
-                    class: 'btn btn-warning',
-                    emit: 'reboot',
-                    payload: ''
-                  },
-                  {
-                    name: 'Later',
-                    class: 'btn btn-default',
-                    emit: 'closeModals',
-                    payload: ''
-                  }
-                ]
-              });
-            }, 500);
-
-            defer.resolve();
-          });
-        });
-      });
-    })
-    .fail(function(err) {
-      self.logger.error('ES9018K2M: saveOverlaySettings failed: ' + err);
-      defer.reject(err);
-    });
-
-  return defer.promise;
 };
 
 // ---------------------------------------------------------------------------

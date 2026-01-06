@@ -4,44 +4,17 @@
   },
   "sections": [
     {
-      "id": "overlay_config",
+      "id": "prerequisites",
       "element": "section",
-      "label": "TRANSLATE.OVERLAY_CONFIG",
-      "icon": "fa-microchip",
-      "description": "TRANSLATE.OVERLAY_CONFIG_DESC",
-      "onSave": {
-        "type": "controller",
-        "endpoint": "miscellanea/es9018k2m",
-        "method": "saveOverlaySettings"
-      },
-      "saveButton": {
-        "label": "TRANSLATE.APPLY_OVERLAY",
-        "data": ["boardType"]
-      },
+      "label": "TRANSLATE.PREREQUISITES",
+      "icon": "fa-info-circle",
+      "description": "TRANSLATE.PREREQUISITES_DESC",
       "content": [
         {
-          "id": "overlayStatus",
-          "element": "text",
-          "label": "TRANSLATE.CURRENT_OVERLAY",
-          "value": ""
-        },
-        {
-          "id": "boardType",
-          "element": "select",
-          "label": "TRANSLATE.BOARD_TYPE",
-          "description": "TRANSLATE.BOARD_TYPE_DESC",
-          "value": { "value": "none", "label": "Not Configured" },
-          "options": [
-            { "value": "none", "label": "Not Configured" },
-            { "value": "type-a", "label": "Type A - No Onboard Crystal (needs MCLK from Pi)" },
-            { "value": "type-b", "label": "Type B - Has Onboard Crystal (self-clocked)" }
-          ]
-        },
-        {
-          "id": "reboot_notice",
+          "id": "prereq_notice",
           "element": "text",
           "label": "",
-          "value": "TRANSLATE.REBOOT_REQUIRED_NOTICE"
+          "value": "TRANSLATE.PREREQ_NOTICE"
         }
       ]
     },

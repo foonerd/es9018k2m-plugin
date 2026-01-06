@@ -1,36 +1,15 @@
 {
   "PLUGIN_NAME": "ES9018K2M DAC Control",
 
-  "OVERLAY_CONFIG": "DAC Overlay Configuration",
-  "OVERLAY_CONFIG_DESC": "Configure the I2S overlay for your ES9018K2M board.",
-  "CURRENT_OVERLAY": "Current Status",
-  "BOARD_TYPE": "Board Type",
-  "BOARD_TYPE_DESC": "Select based on whether your DAC board has an onboard crystal oscillator. Type A boards need MCLK signal from Raspberry Pi GPIO4. Type B boards generate their own clock.",
-  "APPLY_OVERLAY": "Apply and Reboot",
-  "REBOOT_REQUIRED_NOTICE": "Changing the overlay requires a reboot to take effect.",
-
-  "OVERLAY_NONE_DETECTED": "No DAC overlay detected",
-  "SELECT_DAC_FIRST": "Please select i2s-dac in Volumio Playback Options first",
-  "SELECT_DAC_FIRST_DESC": "No DAC overlay is configured. Please go to Volumio Settings > Playback Options > I2S DAC, select 'i2s-dac' (or 'Generic I2S DAC'), and reboot. Then return here to configure the ES9018K2M overlay.",
-
-  "OVERLAY_READY": "DAC overlay detected - ready to configure",
-  "OVERLAY_READY_DESC": "A compatible DAC overlay is configured. Select your board type below and click 'Apply and Reboot' to enable ES9018K2M support with fixed 64FS bitclock.",
-
-  "OVERLAY_CONFIGURED": "ES9018K2M overlay active",
-  "OVERLAY_CONFIGURED_DESC": "ES9018K2M overlay is configured and active. You can change board type if needed, or proceed to configure the DAC settings below.",
-
-  "OVERLAY_OTHER": "Incompatible DAC overlay detected",
-  "OVERLAY_OTHER_DESC": "An incompatible DAC overlay is configured. Please go to Volumio Settings > Playback Options > I2S DAC, select 'i2s-dac' (or 'Generic I2S DAC'), and reboot. Then return here to configure the ES9018K2M overlay.",
-
-  "OVERLAY_APPLIED": "Overlay configuration saved. Please reboot for changes to take effect.",
-  "OVERLAY_TYPE_A": "ES9018K2M Type A (MCLK from Pi)",
-  "OVERLAY_TYPE_B": "ES9018K2M Type B (Self-clocked)",
+  "PREREQUISITES": "Setup Requirements",
+  "PREREQUISITES_DESC": "This plugin requires the i2s-dac overlay to be configured in Volumio.",
+  "PREREQ_NOTICE": "Before using this plugin: Go to Volumio Settings > Playback Options > I2S DAC and select 'i2s-dac' (or 'Generic I2S DAC'), then Save and Reboot. The plugin will not detect your DAC until this is configured.",
 
   "DEVICE_STATUS": "Device Status",
   "CHECK_DEVICE": "Check Device",
   "RESET_DEVICE": "Reset to Defaults",
   "DEVICE_FOUND": "ES9018K2M detected and ready",
-  "DEVICE_NOT_FOUND": "ES9018K2M not detected. Check I2C connection, address, and ensure overlay is configured and system has been rebooted.",
+  "DEVICE_NOT_FOUND": "ES9018K2M not detected. Check I2C connection and address. Ensure i2s-dac is selected in Volumio Playback Options and system has been rebooted.",
   "DEVICE_RESET": "Device reset to factory defaults",
 
   "I2C_SETTINGS": "I2C Configuration",
@@ -63,6 +42,5 @@
   "SAVE": "Save",
   "CONFIRM": "Confirm",
   "CONFIRM_RESET": "Reset all DAC settings to factory defaults?",
-  "SETTINGS_SAVED": "Settings saved",
-  "REBOOT_REQUIRED": "Reboot Required"
+  "SETTINGS_SAVED": "Settings saved"
 }

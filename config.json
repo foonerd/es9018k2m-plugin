@@ -1,8 +1,4 @@
 {
-  "boardType": {
-    "type": "string",
-    "value": "none"
-  },
   "i2cBus": {
     "type": "number",
     "value": 1

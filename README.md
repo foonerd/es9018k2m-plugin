@@ -1,21 +1,37 @@
 # ES9018K2M DAC Control Plugin for Volumio
 
-Hardware control plugin for ES9018K2M DAC via I2C with automatic volume synchronization.
+Hardware control plugin for ES9018K2M-based DAC HATs on Raspberry Pi running Volumio.
 
 ## Features
 
-- Automatic volume synchronization with Volumio
-- Mute-on-track-change to prevent audio pops
-- Digital filter selection (FIR: Slow/Fast/Minimum Phase/Bypass)
-- IIR filter bandwidth control
-- De-emphasis filter for vintage CDs
-- DPLL jitter reduction settings
-- Channel balance adjustment
-- Fixed 64FS bitclock overlay to prevent bit-depth switching issues
+- **Automatic Volume Sync** - DAC volume follows Volumio volume control
+- **Digital Filters** - FIR filter selection (slow/fast roll-off, minimum phase, bypass)
+- **IIR Bandwidth** - Adjustable for PCM and DSD content
+- **DPLL Jitter Reduction** - Configurable for I2S and DSD sources
+- **Channel Balance** - Fine-tune left/right balance
+- **Hardware Pop Prevention** - Optimal register configuration for smooth playback
+
+## Supported Hardware
+
+Works with any ES9018K2M-based DAC HAT, including:
+
+- Aoide DAC II
+- Audiophonics I-SABRE ES9018K2M
+- TeraDAK ES9018K2M
+- Other generic ES9018K2M I2S DAC boards
 
 ## Installation
 
-### From GitHub (Manual Install)
+### Step 1: Configure Volumio DAC Output
+
+1. Go to **Volumio Settings > Playback Options**
+2. Under **I2S DAC**, select **i2s-dac** (or "Generic I2S DAC")
+3. Click **Save**
+4. **Reboot** when prompted
+
+### Step 2: Install the Plugin
+
+From Volumio plugin store (if available), or manually:
 
 ```bash
 git clone --depth=1 https://github.com/foonerd/es9018k2m-plugin.git
@@ -23,136 +39,107 @@ cd es9018k2m-plugin
 volumio plugin install
 ```
 
-After installation, follow the Setup Workflow below.
+### Step 3: Enable and Configure
 
-## Setup Workflow
+1. Go to **Volumio Settings > Plugins > Installed Plugins**
+2. Enable **ES9018K2M DAC Control**
+3. Click **Settings** to configure filters, DPLL, and balance
 
-### Step 1: Configure ALSA/Mixer in Volumio
+## Configuration
 
-Before using this plugin, you must first configure a DAC in Volumio to establish the ALSA mixer:
+### I2C Settings
 
-1. Go to Volumio Settings > Playback Options > I2S DAC
-2. Select "i2s-dac" (or "Generic I2S DAC")
-3. Set mixer type (Hardware, Software, or None)
-4. Save and Reboot
+- **I2C Bus**: Usually 1 for Raspberry Pi
+- **I2C Address**: Default 0x48 (common alternatives: 0x49, 0x4A, 0x4B)
 
-This step is required to enable ALSA and mixer control infrastructure.
+### Digital Filters
 
-### Step 2: Configure ES9018K2M Overlay
+- **FIR Filter**: Controls the oversampling filter shape
+  - Fast Roll-Off (default) - sharp cutoff, some pre-ringing
+  - Slow Roll-Off - gentler cutoff, less pre-ringing
+  - Minimum Phase - no pre-ringing, asymmetric impulse response
+  - Bypass - disables oversampling filter
 
-1. Open plugin settings (Settings > Plugins > Installed Plugins > ES9018K2M DAC Control)
-2. The plugin will detect your current DAC overlay
-3. Select your board type:
-   - Type A: Boards WITHOUT onboard crystal (needs MCLK from Pi)
-   - Type B: Boards WITH onboard crystal (self-clocked)
-4. Click "Apply and Reboot"
+- **IIR Bandwidth**: Analog filter bandwidth
+  - 47K - recommended for PCM
+  - 50K/60K/70K - options for DSD content
+  - Bypass - disables IIR filter
 
-### Step 3: Use the Plugin
+- **De-emphasis**: For pre-emphasized recordings (rare, usually leave Off)
 
-After reboot:
-1. Verify device is detected in plugin status
-2. Configure I2C settings if needed (default: bus 1, address 0x48)
-3. Adjust filters, DPLL, and balance as desired
+### DPLL Settings
 
-## Board Types
+Digital Phase-Locked Loop for jitter reduction:
 
-### Type A - No Onboard Crystal
+- **I2S DPLL**: Level 5 is a good starting point
+- **DSD DPLL**: Level 10 recommended for DSD
 
-Boards that require MCLK signal from Raspberry Pi GPIO4. The overlay configures the Pi to output a master clock signal.
+Higher values = more jitter reduction but may cause issues with some sources.
 
-Examples: Some AOIDE DAC boards, generic ES9018K2M modules without oscillator
+## Technical Details
 
-### Type B - Has Onboard Crystal
+### Register Configuration
 
-Boards with their own clock oscillator that generate MCLK internally.
+The plugin initializes the DAC with optimal register settings derived from ESS application notes and the ES9038Q2M reference implementation:
 
-Examples: Most commercial ES9018K2M DAC HATs with onboard oscillator
+| Register | Value | Function |
+|----------|-------|----------|
+| 0x0E | 0x8A | Soft-start: ramps to AVCC/2 on lock changes (pop prevention) |
+| 0x01 | 0xC4 | 32-bit I2S, auto-detect serial/DSD |
+| 0x06 | 0x47 | Volume ramp rate: fastest |
+| 0x0C | 0x5F | DPLL: I2S=5, DSD=15 |
 
-## How It Works
+### Why No Custom Overlay?
 
-### Fixed 64FS Bitclock
+This plugin uses the standard `i2s-dac` overlay because:
 
-This plugin replaces the standard i2s-dac or hifiberry-dac overlay with an ES9018K2M-specific overlay that uses fixed 64FS (64 x sample rate) bitclock ratio.
-
-With fixed 64FS:
-- 16-bit audio is zero-padded to 32-bit
-- 24-bit audio is zero-padded to 32-bit  
-- 32-bit audio plays natively
-
-The DAC always sees a consistent 32-bit I2S stream, eliminating format switching that causes pops and clicks.
-
-### Overlay Management
-
-The plugin modifies /boot/config.txt to replace the existing DAC overlay:
-- Detects current overlay (i2s-dac, hifiberry-dac, etc.)
-- Replaces it with es9018k2m-type-a or es9018k2m-type-b
-- Preserves ALSA/mixer configuration established in Step 1
-
-### I2C Communication
-
-The plugin uses i2c-tools (i2cset/i2cget) for DAC register access. This avoids native Node.js modules and ensures compatibility across Volumio updates.
-
-Default I2C address: 0x48 (configurable in settings)
-
-### Volume Synchronization
-
-The plugin connects to Volumio's WebSocket interface and synchronizes volume changes directly to DAC registers 0x0F (left) and 0x10 (right).
-
-### Mute-on-Track-Change
-
-When a track change is detected, the plugin briefly mutes the DAC (150ms) to allow the audio stream to stabilize before unmuting.
+1. All ES9018K2M HATs have onboard oscillators (no MCLK from Pi needed)
+2. Register 0x0E soft-start handles sample rate changes at hardware level
+3. No kernel driver needed - I2C control via i2c-tools is sufficient
+4. Simpler setup, no overlay compilation required
 
 ## Troubleshooting
 
-### "No DAC overlay detected" message
+### Device Not Detected
 
-You need to configure a DAC in Volumio first:
-1. Go to Settings > Playback Options > I2S DAC
-2. Select "i2s-dac"
-3. Save and Reboot
-4. Return to plugin settings
+1. Verify i2s-dac is selected in Volumio Playback Options
+2. Reboot after changing DAC selection
+3. Check I2C address (try 0x48, 0x49, 0x4A, 0x4B)
+4. Verify I2C is enabled: `sudo raspi-config` > Interface Options > I2C
 
-### "Incompatible DAC overlay" message
+### No Audio
 
-A DAC overlay other than i2s-dac or hifiberry-dac is configured. Change to i2s-dac in Playback Options and reboot.
+1. Ensure DAC is powered
+2. Check Volumio audio output is set correctly
+3. Try "Check Device" button in plugin settings
 
-### Device not detected after configuration
+### Pops or Clicks
 
-1. Verify I2C is enabled: `sudo i2cdetect -y 1`
-2. Check wiring (SDA, SCL, GND, 3.3V)
-3. Verify I2C address matches plugin settings
-4. Ensure system was rebooted after overlay change
+The hardware soft-start (register 0x0E) should prevent pops. If you still hear them:
 
-### No audio
-
-1. Verify correct board type is selected
-2. Check ALSA sees the device: `aplay -l`
-3. Ensure volume is not muted
-4. Check mixer type in Playback Options
-
-### Clicks on track change
-
-Should be handled automatically by mute-on-change. If clicks persist, the mute delay may need adjustment for your specific board.
+1. Try increasing DPLL value
+2. Check power supply quality
+3. Some very old recordings with DC offset may still cause minor clicks
 
 ## Credits
 
-This plugin builds upon work by:
+This plugin builds upon work and contributions from:
 
-- Chris Song (@ChrisPanda) - Original ES9018K2M plugin for Volumio
-- Grey_bird / DanyHovard (@DanyHovard) - WebSocket volume synchronization concept
-- Darmur - Fixed 64FS bitclock recommendation
+- **Audiophonics** - Serial sync reference implementation
+  https://github.com/audiophonics/ES9018K2M_serial_sync
+
+- **Chris Song** - Original volumio-es9018k2m-plugin concept
+  https://github.com/ChrisPanda/volumio-es9018k2m-plugin
+
+- **Darmur** - ES9038Q2M optimal register configuration
+  https://github.com/Darmur
+
+- **Grey_bird (DanyHovard)** - I2C control implementation
+  https://github.com/DanyHovard/es9018k2m_volumio_I2C_control
+
+- **luoyi** - Rpi-ES9018K2M-DAC kernel driver reference
+  https://github.com/luoyi/Rpi-ES9018K2M-DAC
 
 ## License
 
 MIT License
-
-## Changelog
-
-### 1.0.0
-- Initial release
-- Integrated volume synchronization (no Python/systemd service required)
-- Mute-on-track-change for click prevention
-- Fixed 64FS device tree overlays
-- Uses i2c-tools (no native module compilation)
-- Overlay management via /boot/config.txt
-- State detection and user guidance
