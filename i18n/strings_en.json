@@ -11,6 +11,10 @@
   "DEVICE_FOUND": "ES9018K2M detected and ready",
   "DEVICE_NOT_FOUND": "ES9018K2M not detected. Check I2C connection and address. Ensure i2s-dac is selected in Volumio Playback Options and system has been rebooted.",
   "DEVICE_RESET": "Device reset to factory defaults",
+  "SEEK_MUTE_MS": "Seek Mute Duration (ms)",
+  "SEEK_MUTE_MS_DESC": "Duration to mute audio during seek operations to prevent pops. Set to 0 to disable. Default: 500ms.",
+  "DEBUG_LOGGING": "Debug Logging",
+  "DEBUG_LOGGING_DESC": "Enable verbose logging for troubleshooting. Check journalctl for output. Default: off.",
 
   "I2C_SETTINGS": "I2C Configuration",
   "I2C_BUS": "I2C Bus",

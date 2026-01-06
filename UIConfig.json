@@ -24,7 +24,36 @@
       "label": "TRANSLATE.DEVICE_STATUS",
       "icon": "fa-check-circle",
       "description": "",
+      "onSave": {
+        "type": "controller",
+        "endpoint": "system_hardware/es9018k2m",
+        "method": "saveDeviceSettings"
+      },
+      "saveButton": {
+        "label": "TRANSLATE.SAVE",
+        "data": ["seekMuteMs", "debugLogging"]
+      },
       "content": [
+        {
+          "id": "seekMuteMs",
+          "element": "input",
+          "type": "number",
+          "label": "TRANSLATE.SEEK_MUTE_MS",
+          "description": "TRANSLATE.SEEK_MUTE_MS_DESC",
+          "value": 500,
+          "attributes": [
+            { "placeholder": "500" },
+            { "min": 0 },
+            { "max": 2000 }
+          ]
+        },
+        {
+          "id": "debugLogging",
+          "element": "switch",
+          "label": "TRANSLATE.DEBUG_LOGGING",
+          "description": "TRANSLATE.DEBUG_LOGGING_DESC",
+          "value": false
+        },
         {
           "id": "check_device",
           "element": "button",

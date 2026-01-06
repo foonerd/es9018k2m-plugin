@@ -3,7 +3,6 @@
 const libQ = require('kew');
 const fs = require('fs-extra');
 const { exec } = require('child_process');
-const io = require('socket.io-client');
 
 module.exports = ControllerES9018K2M;
 
@@ -21,11 +20,14 @@ function ControllerES9018K2M(context) {
 
   // Device state
   self.deviceFound = false;
-  self.volumioSocket = null;
 
   // State tracking for volume sync
   self.lastVolume = null;
   self.lastStatus = null;
+  self.lastSeek = null;
+  self.seekMuteMs = 500;
+  self.debugLogging = false;
+  self.pollInterval = 3000;
 
   // Balance offsets
   self.lBal = 0;
@@ -95,10 +97,7 @@ ControllerES9018K2M.prototype.onStop = function() {
   self.logger.info('ES9018K2M: Stopping plugin');
 
   // Stop volume sync
-  if (self.volumioSocket) {
-    self.volumioSocket.disconnect();
-    self.volumioSocket = null;
-  }
+  self.stopVolumeSync();
 
   // Mute DAC before stopping
   if (self.deviceFound) {
@@ -138,6 +137,8 @@ ControllerES9018K2M.prototype.loadConfig = function() {
 
   self.i2cBus = self.config.get('i2cBus', 1);
   self.i2cAddress = self.config.get('i2cAddress', 0x48);
+  self.seekMuteMs = self.config.get('seekMuteMs', 500);
+  self.debugLogging = self.config.get('debugLogging', false);
 
   self.lBal = 0;
   self.rBal = 0;
@@ -146,6 +147,13 @@ ControllerES9018K2M.prototype.loadConfig = function() {
     self.lBal = balance;
   } else if (balance < 0) {
     self.rBal = -balance;
+  }
+};
+
+ControllerES9018K2M.prototype.logDebug = function(msg) {
+  const self = this;
+  if (self.debugLogging) {
+    self.logger.info(msg);
   }
 };
 
@@ -179,6 +187,8 @@ ControllerES9018K2M.prototype.getUIConfig = function() {
     uiconf.sections[1].description = self.deviceFound
       ? self.getI18nString('DEVICE_FOUND')
       : self.getI18nString('DEVICE_NOT_FOUND');
+    uiconf.sections[1].content[0].value = self.config.get('seekMuteMs', 500);
+    uiconf.sections[1].content[1].value = self.config.get('debugLogging', false);
 
     // Section 2: I2C Settings
     uiconf.sections[2].content[0].value = self.i2cBus;
@@ -380,58 +390,149 @@ ControllerES9018K2M.prototype.applySettings = function() {
 };
 
 // ---------------------------------------------------------------------------
-// Volume Synchronization
+// Volume Synchronization (using Volumio internal callbacks + polling fallback)
 // ---------------------------------------------------------------------------
 
 ControllerES9018K2M.prototype.startVolumeSync = function() {
   const self = this;
 
-  self.volumioSocket = io.connect('http://localhost:3000');
+  self.logger.info('ES9018K2M: Setting up volume sync');
 
-  self.volumioSocket.on('pushState', function(state) {
+  // Get initial state
+  const state = self.commandRouter.volumioGetState();
+  if (state) {
+    self.logDebug('ES9018K2M: Initial state - status=' + state.status + 
+      ' volume=' + state.volume + ' mute=' + state.mute);
     self.handleStateChange(state);
-  });
+    self.lastSeek = state.seek || 0;
+  }
 
-  self.volumioSocket.on('connect', function() {
-    self.logger.info('ES9018K2M: Volume sync connected');
-    // Request initial state
-    self.volumioSocket.emit('getState', '');
-  });
+  // Register callback for volume changes (this works)
+  self.volumeCallback = function(volume) {
+    self.logDebug('ES9018K2M: Volume callback received: ' + JSON.stringify(volume));
+    if (typeof volume === 'object' && typeof volume.vol === 'number') {
+      if (volume.vol !== self.lastVolume) {
+        self.logDebug('ES9018K2M: Setting volume to ' + volume.vol);
+        self.setVolume(volume.vol);
+        self.lastVolume = volume.vol;
+      }
+      if (typeof volume.mute === 'boolean') {
+        self.logDebug('ES9018K2M: Mute from volume callback: ' + volume.mute);
+        self.setMute(volume.mute);
+      }
+    }
+  };
 
-  self.volumioSocket.on('disconnect', function() {
-    self.logger.warn('ES9018K2M: Volume sync disconnected');
-  });
+  self.commandRouter.addCallback('volumioupdatevolume', self.volumeCallback);
+
+  // Adaptive polling - slow when stopped/paused, faster when playing for seek detection
+  self.pollInterval = 3000;  // Start slow
+  
+  self.doPoll = function() {
+    const currentState = self.commandRouter.volumioGetState();
+    if (!currentState) {
+      self.statePoller = setTimeout(self.doPoll, self.pollInterval);
+      return;
+    }
+
+    // Detect status change
+    if (currentState.status !== self.lastStatus) {
+      self.logDebug('ES9018K2M: State changed via poll: ' + self.lastStatus + ' -> ' + currentState.status);
+      self.handleStateChange(currentState);
+    }
+
+    // Adjust polling rate based on playback status
+    if (currentState.status === 'play') {
+      self.pollInterval = 500;  // Fast polling for seek detection
+      
+      // Detect seek (large position jump)
+      if (typeof currentState.seek === 'number') {
+        const seekDiff = Math.abs((currentState.seek || 0) - (self.lastSeek || 0));
+        if (seekDiff > 2000 && self.lastSeek !== null) {
+          self.logDebug('ES9018K2M: Seek detected (jump=' + seekDiff + 'ms), muting briefly');
+          self.muteForSeek();
+        }
+        self.lastSeek = currentState.seek;
+      }
+    } else {
+      self.pollInterval = 3000;  // Slow polling when not playing
+    }
+
+    self.statePoller = setTimeout(self.doPoll, self.pollInterval);
+  };
+
+  // Start polling
+  self.statePoller = setTimeout(self.doPoll, self.pollInterval);
+
+  self.logger.info('ES9018K2M: Volume sync started (adaptive polling)');
+};
+
+ControllerES9018K2M.prototype.muteForSeek = function() {
+  const self = this;
+
+  // Skip if seek mute disabled
+  if (!self.seekMuteMs || self.seekMuteMs <= 0) {
+    return;
+  }
+
+  // Only mute if not already muted
+  if ((self.reg7 & 0x01) === 0) {
+    self.setMute(true);
+    // Unmute after configured delay
+    setTimeout(function() {
+      const state = self.commandRouter.volumioGetState();
+      if (state && state.status === 'play' && !state.mute) {
+        self.setMute(false);
+      }
+    }, self.seekMuteMs);
+  }
+};
+
+ControllerES9018K2M.prototype.stopVolumeSync = function() {
+  const self = this;
+
+  if (self.statePoller) {
+    clearTimeout(self.statePoller);
+    self.statePoller = null;
+  }
+
+  self.logger.info('ES9018K2M: Volume sync stopped');
 };
 
 ControllerES9018K2M.prototype.handleStateChange = function(state) {
   const self = this;
 
-  if (!self.deviceFound) return;
+  if (!self.deviceFound) {
+    return;
+  }
+
+  if (!state) return;
 
   const status = state.status;
   const volume = state.volume;
   const mute = state.mute;
 
   // Status change - mute on stop/pause, unmute on play
-  // No track change mute needed - register 0x0E soft start handles pops
-  if (status !== 'play' && self.lastStatus === 'play') {
-    self.setMute(true);
-  } else if (status === 'play' && self.lastStatus !== 'play') {
-    if (!mute) {
+  if (status === 'stop' || status === 'pause') {
+    if (self.lastStatus === 'play') {
+      self.logDebug('ES9018K2M: Muting due to status=' + status);
+      self.setMute(true);
+    }
+  } else if (status === 'play') {
+    if (self.lastStatus !== 'play' && !mute) {
+      self.logDebug('ES9018K2M: Unmuting due to play');
       self.setMute(false);
     }
   }
   self.lastStatus = status;
 
-  // Volume sync
+  // Reset seek tracking on status change
+  self.lastSeek = state.seek || 0;
+
+  // Volume sync from state (backup)
   if (typeof volume === 'number' && volume !== self.lastVolume) {
     self.setVolume(volume);
     self.lastVolume = volume;
-  }
-
-  // Explicit mute control
-  if (typeof mute === 'boolean') {
-    self.setMute(mute);
   }
 };
 
@@ -442,9 +543,21 @@ ControllerES9018K2M.prototype.handleStateChange = function(state) {
 ControllerES9018K2M.prototype.setVolume = function(vol) {
   const self = this;
 
-  // ES9018K2M: 0 = 0dB (max), 255 = -127.5dB (mute)
-  // Volumio: 0 = min, 100 = max
-  const attenuation = Math.round((100 - Math.max(0, Math.min(100, vol))) * 2.55);
+  // ES9018K2M: 0 = 0dB (max), each step = -0.5dB
+  // Darmur's approach: limit range to 0x00-0x63 (0 to -49.5dB)
+  // 0xFF = mute
+  
+  const DAC_MAX_GAIN = 0x00;  // 0dB (loudest)
+  const DAC_MIN_GAIN = 0x63;  // -49.5dB (quietest before mute)
+  const DAC_MUTE_GAIN = 0xFF;
+  
+  let attenuation;
+  if (vol <= 0) {
+    attenuation = DAC_MUTE_GAIN;
+  } else {
+    // Linear mapping: 100% -> 0x00, 1% -> 0x63
+    attenuation = Math.round(DAC_MIN_GAIN - (vol * DAC_MIN_GAIN / 100));
+  }
 
   // Left channel (register 15) with balance offset
   const leftAtten = Math.min(255, attenuation + self.lBal);
@@ -458,12 +571,15 @@ ControllerES9018K2M.prototype.setVolume = function(vol) {
 ControllerES9018K2M.prototype.setMute = function(mute) {
   const self = this;
 
+  self.logDebug('ES9018K2M: setMute called with ' + mute + ' (current reg7=0x' + self.reg7.toString(16) + ')');
+
   if (mute) {
     self.reg7 = self.reg7 | 0x01;  // Set bit 0 (mute)
   } else {
     self.reg7 = self.reg7 & 0xFE;  // Clear bit 0 (unmute)
   }
 
+  self.logDebug('ES9018K2M: Writing reg7=0x' + self.reg7.toString(16));
   self.i2cWrite(0x07, self.reg7);
 };
 
@@ -589,6 +705,21 @@ ControllerES9018K2M.prototype.checkDeviceStatus = function() {
     });
 };
 
+ControllerES9018K2M.prototype.saveDeviceSettings = function(data) {
+  const self = this;
+
+  const seekMuteMs = parseInt(data.seekMuteMs, 10) || 500;
+  self.seekMuteMs = Math.max(0, Math.min(2000, seekMuteMs));
+  self.config.set('seekMuteMs', self.seekMuteMs);
+
+  self.debugLogging = data.debugLogging || false;
+  self.config.set('debugLogging', self.debugLogging);
+
+  self.commandRouter.pushToastMessage('success',
+    self.getI18nString('PLUGIN_NAME'),
+    self.getI18nString('SETTINGS_SAVED'));
+};
+
 ControllerES9018K2M.prototype.saveI2cSettings = function(data) {
   const self = this;
 
@@ -683,6 +814,8 @@ ControllerES9018K2M.prototype.resetDevice = function() {
   self.config.set('deemphasis', 0x4A);
   self.config.set('i2sDpll', 0x50);
   self.config.set('dsdDpll', 0x0A);
+  self.config.set('seekMuteMs', 500);
+  self.config.set('debugLogging', false);
 
   self.loadConfig();
   self.initDevice();

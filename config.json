@@ -30,5 +30,13 @@
   "dsdDpll": {
     "type": "number",
     "value": 10
+  },
+  "seekMuteMs": {
+    "type": "number",
+    "value": 500
+  },
+  "debugLogging": {
+    "type": "boolean",
+    "value": false
   }
 }
