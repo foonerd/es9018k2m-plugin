@@ -27,7 +27,7 @@ function ControllerES9018K2M(context) {
   self.lastSeek = null;
   self.seekMuteMs = 500;
   self.debugLogging = false;
-  self.pollInterval = 3000;
+  self.pollInterval = 30000;
 
   // Balance offsets
   self.lBal = 0;
@@ -425,8 +425,9 @@ ControllerES9018K2M.prototype.startVolumeSync = function() {
 
   self.commandRouter.addCallback('volumioupdatevolume', self.volumeCallback);
 
-  // Adaptive polling - slow when stopped/paused, faster when playing for seek detection
-  self.pollInterval = 3000;  // Start slow
+  // Adaptive polling - very slow when stopped, faster only when playing for seek detection
+  // This minimizes SD card writes from excessive logging
+  self.pollInterval = 30000;  // 30 seconds when stopped
   
   self.doPoll = function() {
     const currentState = self.commandRouter.volumioGetState();
@@ -443,19 +444,24 @@ ControllerES9018K2M.prototype.startVolumeSync = function() {
 
     // Adjust polling rate based on playback status
     if (currentState.status === 'play') {
-      self.pollInterval = 500;  // Fast polling for seek detection
-      
-      // Detect seek (large position jump)
-      if (typeof currentState.seek === 'number') {
-        const seekDiff = Math.abs((currentState.seek || 0) - (self.lastSeek || 0));
-        if (seekDiff > 2000 && self.lastSeek !== null) {
-          self.logDebug('ES9018K2M: Seek detected (jump=' + seekDiff + 'ms), muting briefly');
-          self.muteForSeek();
+      // Only fast poll if seek mute is enabled
+      if (self.seekMuteMs > 0) {
+        self.pollInterval = 1000;  // 1 second for seek detection
+        
+        // Detect seek (large position jump)
+        if (typeof currentState.seek === 'number') {
+          const seekDiff = Math.abs((currentState.seek || 0) - (self.lastSeek || 0));
+          if (seekDiff > 2000 && self.lastSeek !== null) {
+            self.logDebug('ES9018K2M: Seek detected (jump=' + seekDiff + 'ms), muting briefly');
+            self.muteForSeek();
+          }
+          self.lastSeek = currentState.seek;
         }
-        self.lastSeek = currentState.seek;
+      } else {
+        self.pollInterval = 30000;  // Seek detection disabled, slow poll
       }
     } else {
-      self.pollInterval = 3000;  // Slow polling when not playing
+      self.pollInterval = 30000;  // 30 seconds when stopped/paused
     }
 
     self.statePoller = setTimeout(self.doPoll, self.pollInterval);
