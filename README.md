@@ -1,15 +1,18 @@
 # ES9018K2M DAC Control Plugin for Volumio
 
-Hardware control plugin for ES9018K2M-based DAC HATs on Raspberry Pi running Volumio.
+Hardware control plugin for ES9018K2M-based DAC HATs on Raspberry Pi running Volumio 4.
 
 ## Features
 
-- **Automatic Volume Sync** - DAC volume follows Volumio volume control
+- **Automatic Volume Sync** - DAC volume follows Volumio volume control via direct callback
+- **Event-Driven State Tracking** - Socket.io connection to Volumio backend for play/pause/stop
+- **Pop-Free Seeks** - Pre-emptive mute before seek execution prevents audio discontinuities
 - **Digital Filters** - FIR filter selection (slow/fast roll-off, minimum phase, bypass)
 - **IIR Bandwidth** - Adjustable for PCM and DSD content
 - **DPLL Jitter Reduction** - Configurable for I2S and DSD sources
 - **Channel Balance** - Fine-tune left/right balance
-- **Hardware Pop Prevention** - Optimal register configuration for smooth playback
+- **Hardware Soft-Start** - Register 0x0E configuration for format change pop prevention
+- **Debug Logging** - Optional verbose logging for troubleshooting
 
 ## Supported Hardware
 
@@ -19,6 +22,12 @@ Works with any ES9018K2M-based DAC HAT, including:
 - Audiophonics I-SABRE ES9018K2M
 - TeraDAK ES9018K2M
 - Other generic ES9018K2M I2S DAC boards
+
+## Requirements
+
+- Volumio 4.x (Bookworm-based)
+- Raspberry Pi with I2C enabled
+- ES9018K2M-based DAC HAT
 
 ## Installation
 
@@ -34,7 +43,7 @@ Works with any ES9018K2M-based DAC HAT, including:
 From Volumio plugin store (if available), or manually:
 
 ```bash
-git clone --depth=1 https://github.com/foonerd/es9018k2m-plugin.git
+git clone --depth=1 -b dev-websocket https://github.com/foonerd/es9018k2m-plugin.git
 cd es9018k2m-plugin
 volumio plugin install
 ```
@@ -46,6 +55,12 @@ volumio plugin install
 3. Click **Settings** to configure filters, DPLL, and balance
 
 ## Configuration
+
+### Device Settings
+
+- **Seek Mute Duration (ms)**: Time to keep DAC muted during seek operations (default: 150ms). Set to 0 to disable seek mute. Higher values ensure pop-free seeks but add slight delay.
+
+- **Debug Logging**: Enable verbose logging for troubleshooting. Logs socket events, state changes, and I2C operations. Disable in normal use to reduce SD card wear.
 
 ### I2C Settings
 
@@ -78,20 +93,50 @@ Higher values = more jitter reduction but may cause issues with some sources.
 
 ## Technical Details
 
+### Architecture
+
+The plugin uses three mechanisms for DAC control:
+
+1. **Volume Callback** - Registers with Volumio's volumioupdatevolume callback for immediate volume changes. This is the most direct path with minimal latency.
+
+2. **Socket.io Connection** - Connects to Volumio backend (localhost:3000) to receive pushState events for play/pause/stop status changes. Includes automatic reconnection with exponential backoff (1s to 30s max). Falls back to 60s polling only if socket unavailable for >5 minutes.
+
+3. **Seek Intercept** - Wraps commandRouter.volumioSeek() at runtime to apply pre-emptive mute BEFORE seek executes. This is the only way to prevent seek pops since reactive event handling is always too late.
+
+### Seek Pop Prevention
+
+Audio pops during seeks occur because:
+
+- User releases seek slider
+- MPD executes seek immediately (audio discontinuity = pop)
+- pushState event fires ~30ms AFTER the pop already happened
+- Reactive mute arrives too late
+
+The plugin solves this by intercepting volumioSeek() before it reaches MPD:
+
+- Seek request intercepted
+- Synchronous mute via execSync (blocks ~30ms)
+- Original seek executes (DAC already muted - no pop)
+- Unmute after configurable delay
+
+This adds ~30-50ms latency to seeks but guarantees pop-free operation.
+
 ### Register Configuration
 
-The plugin initializes the DAC with optimal register settings derived from ESS application notes and the ES9038Q2M reference implementation:
+The plugin initializes the DAC with optimal register settings:
 
 | Register | Value | Function |
 |----------|-------|----------|
-| 0x0E | 0x8A | Soft-start: ramps to AVCC/2 on lock changes (pop prevention) |
+| 0x0E | 0x8A | Soft-start: ramps to AVCC/2 on DPLL lock changes |
 | 0x01 | 0xC4 | 32-bit I2S, auto-detect serial/DSD |
 | 0x06 | 0x47 | Volume ramp rate: fastest |
+| 0x07 | 0x80 | General settings (mute control, filters) |
 | 0x0C | 0x5F | DPLL: I2S=5, DSD=15 |
+| 0x0F/0x10 | variable | Left/right channel volume |
 
 ### Why No Custom Overlay?
 
-This plugin uses the standard `i2s-dac` overlay because:
+This plugin uses the standard i2s-dac overlay because:
 
 1. All ES9018K2M HATs have onboard oscillators (no MCLK from Pi needed)
 2. Register 0x0E soft-start handles sample rate changes at hardware level
@@ -113,13 +158,47 @@ This plugin uses the standard `i2s-dac` overlay because:
 2. Check Volumio audio output is set correctly
 3. Try "Check Device" button in plugin settings
 
-### Pops or Clicks
+### Pops During Seek
 
-The hardware soft-start (register 0x0E) should prevent pops. If you still hear them:
+1. Increase Seek Mute Duration to 200-300ms
+2. Enable Debug Logging to verify seek intercept is working
+3. Check logs for "Seek intercept" messages
+
+### Pops on Track Change
+
+Track changes with format differences (sample rate, bit depth) are handled by hardware soft-start (register 0x0E). If you still hear pops:
 
 1. Try increasing DPLL value
 2. Check power supply quality
-3. Some very old recordings with DC offset may still cause minor clicks
+3. Verify register 0x0E is set to 0x8A in debug logs
+
+### Socket Connection Issues
+
+If debug logs show repeated socket reconnection:
+
+1. This is normal during Volumio restarts
+2. Plugin falls back to 60s polling after 5 minutes
+3. Volume sync via callback continues working regardless
+
+## Changelog
+
+### v1.2.0
+- Event-driven architecture with socket.io pushState
+- Pre-emptive seek mute via commandRouter intercept
+- Exponential backoff reconnection (1s to 30s)
+- Fallback poller only when socket unavailable >5min
+- Debug logging toggle with immediate effect
+
+### v1.1.1
+- Fixed chip ID detection using bit mask 0x1C
+- Replaced socket.io with internal callbacks
+- Fixed volume range (0-49.5dB)
+- Added seek mute for pop prevention
+
+### v1.1.0
+- Simplified architecture
+- Removed overlay management
+- Added optimal init registers from ES9038Q2M reference
 
 ## Credits
 
