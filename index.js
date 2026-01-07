@@ -146,7 +146,9 @@ ControllerES9018K2M.prototype.onStop = function() {
     if (self.currentVolume !== self.lastSavedVolume) {
       self.config.set('lastSavedVolume', self.currentVolume);
       self.lastSavedVolume = self.currentVolume;
-      self.logDebug('ES9018K2M: Saved volume on stop: ' + self.currentVolume);
+      // Force flush to disk - config may not be saved before shutdown otherwise
+      self.config.save();
+      self.logger.info('ES9018K2M: Saved volume on stop: ' + self.currentVolume);
     }
   }
 
@@ -180,6 +182,8 @@ ControllerES9018K2M.prototype.onVolumioShutdown = function() {
   if (self.volumeMode === 'hardware' && self.rememberLastVolume) {
     if (self.currentVolume !== self.lastSavedVolume) {
       self.config.set('lastSavedVolume', self.currentVolume);
+      self.config.save();
+      self.logger.info('ES9018K2M: Saved volume on shutdown: ' + self.currentVolume);
     }
   }
 
@@ -200,6 +204,8 @@ ControllerES9018K2M.prototype.onVolumioReboot = function() {
   if (self.volumeMode === 'hardware' && self.rememberLastVolume) {
     if (self.currentVolume !== self.lastSavedVolume) {
       self.config.set('lastSavedVolume', self.currentVolume);
+      self.config.save();
+      self.logger.info('ES9018K2M: Saved volume on reboot: ' + self.currentVolume);
     }
   }
 
@@ -220,11 +226,55 @@ ControllerES9018K2M.prototype.onVolumioReboot = function() {
 ControllerES9018K2M.prototype.applyStartupVolume = function() {
   var self = this;
 
-  // Get current system volume
+  // Check if any startup volume features are enabled
+  var hasStartupFeatures = self.startMuted || self.rememberLastVolume || self.safeStartupEnabled;
+
+  if (!hasStartupFeatures) {
+    self.logger.info('ES9018K2M: No startup volume features enabled');
+    return;
+  }
+
+  self.logger.info('ES9018K2M: Waiting for system ready state before applying startup volume');
+
+  var pollingInterval = 1500;  // 1.5 seconds
+  var maxAttempts = 60;        // 90 seconds max wait
+  var attempts = 0;
+
+  function checkSystemReady() {
+    attempts++;
+
+    var systemStatus = process.env.VOLUMIO_SYSTEM_STATUS;
+
+    self.logDebug('ES9018K2M: Ready check #' + attempts + '/' + maxAttempts +
+      ' - VOLUMIO_SYSTEM_STATUS=' + systemStatus);
+
+    if (systemStatus === 'ready') {
+      self.logger.info('ES9018K2M: System ready after ' + attempts + ' checks, applying startup volume');
+      self.doApplyStartupVolume();
+
+    } else if (attempts < maxAttempts) {
+      // Not ready yet - check again
+      setTimeout(checkSystemReady, pollingInterval);
+
+    } else {
+      // Timeout - apply anyway
+      self.logger.warn('ES9018K2M: Timeout waiting for ready state, applying startup volume anyway');
+      self.doApplyStartupVolume();
+    }
+  }
+
+  // Start polling
+  checkSystemReady();
+};
+
+ControllerES9018K2M.prototype.doApplyStartupVolume = function() {
+  var self = this;
+
+  // Get current system volume (Volumio has now set its startup volume)
   var state = self.commandRouter.volumioGetState();
   var systemVolume = (state && typeof state.volume === 'number') ? state.volume : 100;
 
-  self.logDebug('ES9018K2M: Startup volume logic - system=' + systemVolume +
+  self.logger.info('ES9018K2M: Startup volume logic - system=' + systemVolume +
     ', startMuted=' + self.startMuted +
     ', rememberLast=' + self.rememberLastVolume +
     ', lastSaved=' + self.lastSavedVolume +
@@ -237,8 +287,15 @@ ControllerES9018K2M.prototype.applyStartupVolume = function() {
   // Priority 1: Start muted
   if (self.startMuted) {
     shouldMute = true;
-    targetVolume = systemVolume;  // Keep system volume unchanged, just mute
-    self.logger.info('ES9018K2M: Starting muted');
+    // If rememberLastVolume also enabled, use that for slider position
+    // Otherwise keep system volume for slider
+    if (self.rememberLastVolume && self.lastSavedVolume >= 0) {
+      targetVolume = self.lastSavedVolume;
+      self.logger.info('ES9018K2M: Starting muted at remembered volume: ' + targetVolume);
+    } else {
+      targetVolume = systemVolume;
+      self.logger.info('ES9018K2M: Starting muted at system volume: ' + targetVolume);
+    }
   }
   // Priority 2: Remember last volume
   else if (self.rememberLastVolume && self.lastSavedVolume >= 0) {
@@ -252,7 +309,7 @@ ControllerES9018K2M.prototype.applyStartupVolume = function() {
       ' (was ' + systemVolume + ')');
   }
 
-  // Apply to DAC
+  // Apply to DAC directly (bypass alsavolume to avoid feedback loop)
   self.currentVolume = targetVolume;
   self.setVolumeImmediate(targetVolume);
 
@@ -261,11 +318,14 @@ ControllerES9018K2M.prototype.applyStartupVolume = function() {
     self.currentMute = true;
   }
 
-  // Push state to Volumio
+  // Push state to Volumio so UI reflects our override
   self.commandRouter.volumioupdatevolume({
     vol: targetVolume,
     mute: shouldMute
   });
+
+  self.logger.info('ES9018K2M: Startup volume applied: ' + targetVolume +
+    (shouldMute ? ' (muted)' : ''));
 };
 
 // ---------------------------------------------------------------------------
