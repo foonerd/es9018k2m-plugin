@@ -1,6 +1,6 @@
 {
   "name": "es9018k2m",
-  "version": "1.2.0",
+  "version": "1.2.1",
   "description": "Hardware control for ES9018K2M DAC via I2C with automatic volume synchronization",
   "main": "index.js",
   "scripts": {
@@ -19,8 +19,8 @@
     "architectures": ["armhf"],
     "os": ["bookworm"],
     "has_configuration": true,
-    "details": "Hardware control for ES9018K2M DAC via I2C. Automatic volume synchronization with Volumio, digital filters (FIR/IIR), DPLL jitter reduction, and balance control. Works with any ES9018K2M-based DAC HAT using the standard i2s-dac overlay.",
-    "changelog": "v1.2.0 - Event-driven architecture with socket.io pushState, pre-emptive seek mute via commandRouter intercept for pop-free seeks, exponential backoff reconnection; v1.1.1 - Fixed chip ID detection, replaced socket.io with internal callbacks, fixed volume range (0-49.5dB), added seek mute for pop prevention; v1.1.0 - Simplified architecture, removed overlay management, added optimal init registers"
+    "details": "Hardware control for ES9018K2M DAC via I2C. Software or Hardware volume modes (Hardware enables volume slider with Mixer Type: None), graceful volume ramping, digital filters (FIR/IIR), DPLL jitter reduction, and balance control. Works with any ES9018K2M-based DAC HAT using the standard i2s-dac overlay.",
+    "changelog": "v1.2.1 - Hardware volume override mode (enables volume slider when Mixer Type: None), graceful volume ramping for mute/unmute and volume changes, configurable step count (1-5), auto-detect or manual ALSA card selection; v1.2.0 - Event-driven architecture with socket.io pushState, pre-emptive seek mute via commandRouter intercept for pop-free seeks, exponential backoff reconnection; v1.1.1 - Fixed chip ID detection, replaced socket.io with internal callbacks, fixed volume range (0-49.5dB), added seek mute for pop prevention; v1.1.0 - Simplified architecture, removed overlay management, added optimal init registers"
   },
   "engines": {
     "node": ">=20",

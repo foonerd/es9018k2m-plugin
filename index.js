@@ -23,12 +23,26 @@ function ControllerES9018K2M(context) {
   // Device state
   self.deviceFound = false;
 
+  // Volume mode: 'software' or 'hardware'
+  self.volumeMode = 'software';
+  self.cardNumber = -1;  // -1 = auto-detect
+  self.volumeOverrideRegistered = false;
+
+  // Current volume/mute state for hardware mode
+  self.currentVolume = 100;
+  self.currentMute = false;
+
   // State tracking
   self.lastVolume = null;
   self.lastStatus = null;
   self.lastSeek = null;
   self.seekMuteMs = 150;
   self.debugLogging = false;
+
+  // Graceful settings
+  self.gracefulSteps = 3;
+  self.gracefulTransitions = true;
+  self.gracefulVolume = true;
 
   // Balance offsets
   self.lBal = 0;
@@ -89,9 +103,16 @@ ControllerES9018K2M.prototype.onStart = function() {
         self.initDevice();
         self.applySettings();
         self.installSeekIntercept();
-        self.startVolumeSync();
+
+        // Start appropriate volume control mode
+        if (self.volumeMode === 'hardware') {
+          self.registerVolumeOverride();
+        } else {
+          self.startVolumeSync();
+        }
+
         self.startSocketConnection();
-        self.logger.info('ES9018K2M: Device initialized, socket connection started');
+        self.logger.info('ES9018K2M: Device initialized, volume mode: ' + self.volumeMode);
       } else {
         self.logger.warn('ES9018K2M: Device not found at address 0x' +
           self.i2cAddress.toString(16));
@@ -118,6 +139,11 @@ ControllerES9018K2M.prototype.onStop = function() {
   // Stop socket connection
   self.stopSocketConnection();
 
+  // Unregister volume override if active
+  if (self.volumeOverrideRegistered) {
+    self.unregisterVolumeOverride();
+  }
+
   // Stop volume sync callback
   self.stopVolumeSync();
 
@@ -133,6 +159,9 @@ ControllerES9018K2M.prototype.onStop = function() {
 ControllerES9018K2M.prototype.onVolumioShutdown = function() {
   var self = this;
   self.removeSeekIntercept();
+  if (self.volumeOverrideRegistered) {
+    self.unregisterVolumeOverride();
+  }
   if (self.deviceFound) {
     self.setMuteSync(true);
   }
@@ -142,6 +171,9 @@ ControllerES9018K2M.prototype.onVolumioShutdown = function() {
 ControllerES9018K2M.prototype.onVolumioReboot = function() {
   var self = this;
   self.removeSeekIntercept();
+  if (self.volumeOverrideRegistered) {
+    self.unregisterVolumeOverride();
+  }
   if (self.deviceFound) {
     self.setMuteSync(true);
   }
@@ -163,6 +195,15 @@ ControllerES9018K2M.prototype.loadConfig = function() {
   self.i2cAddress = self.config.get('i2cAddress', 0x48);
   self.seekMuteMs = self.config.get('seekMuteMs', 150);
   self.debugLogging = self.config.get('debugLogging', false);
+
+  // Volume mode settings
+  self.volumeMode = self.config.get('volumeMode', 'software');
+  self.cardNumber = self.config.get('cardNumber', -1);
+
+  // Graceful settings
+  self.gracefulSteps = self.config.get('gracefulSteps', 3);
+  self.gracefulTransitions = self.config.get('gracefulTransitions', true);
+  self.gracefulVolume = self.config.get('gracefulVolume', true);
 
   self.lBal = 0;
   self.rBal = 0;
@@ -211,8 +252,31 @@ ControllerES9018K2M.prototype.getUIConfig = function() {
     uiconf.sections[1].description = self.deviceFound
       ? self.getI18nString('DEVICE_FOUND')
       : self.getI18nString('DEVICE_NOT_FOUND');
-    uiconf.sections[1].content[0].value = self.config.get('seekMuteMs', 150);
-    uiconf.sections[1].content[1].value = self.config.get('debugLogging', false);
+
+    // Volume mode select
+    var volumeModeValue = self.config.get('volumeMode', 'software');
+    uiconf.sections[1].content[0].value = {
+      value: volumeModeValue,
+      label: volumeModeValue === 'hardware'
+        ? self.getI18nString('VOLUME_MODE_HARDWARE')
+        : self.getI18nString('VOLUME_MODE_SOFTWARE')
+    };
+
+    // Card number - show auto-detected value or manual override
+    var cardNum = self.config.get('cardNumber', -1);
+    var detectedCard = self.getAutoDetectedCard();
+    if (cardNum === -1) {
+      uiconf.sections[1].content[1].value = 'auto (' + detectedCard + ')';
+    } else {
+      uiconf.sections[1].content[1].value = String(cardNum);
+    }
+
+    // Other device settings
+    uiconf.sections[1].content[2].value = self.config.get('seekMuteMs', 150);
+    uiconf.sections[1].content[3].value = self.config.get('gracefulSteps', 3);
+    uiconf.sections[1].content[4].value = self.config.get('gracefulTransitions', true);
+    uiconf.sections[1].content[5].value = self.config.get('gracefulVolume', true);
+    uiconf.sections[1].content[6].value = self.config.get('debugLogging', false);
 
     // Section 2: I2C Settings
     uiconf.sections[2].content[0].value = self.i2cBus;
@@ -370,8 +434,9 @@ ControllerES9018K2M.prototype.initDevice = function() {
   // Register 0x1B: ASRC and volume latch
   self.i2cWrite(0x1B, 0xD4);
 
-  // Initialize volume to 90%
-  self.setVolume(90);
+  // Initialize volume to 100% (full scale, no attenuation)
+  self.currentVolume = 100;
+  self.setVolumeImmediate(100);
 
   self.setMuteSync(false);
 
@@ -388,6 +453,130 @@ ControllerES9018K2M.prototype.applySettings = function() {
     self.config.get('i2sDpll', 0x50),
     self.config.get('dsdDpll', 0x0A)
   );
+};
+
+// ---------------------------------------------------------------------------
+// Hardware Volume Override - Integration with alsa_controller
+// ---------------------------------------------------------------------------
+
+ControllerES9018K2M.prototype.getAutoDetectedCard = function() {
+  var self = this;
+
+  try {
+    var outputDevice = self.commandRouter.executeOnPlugin(
+      'audio_interface',
+      'alsa_controller',
+      'getConfigParam',
+      'outputdevice'
+    );
+    return outputDevice !== undefined ? outputDevice : 0;
+  } catch (err) {
+    self.logger.warn('ES9018K2M: Could not auto-detect card: ' + err.message);
+    return 0;
+  }
+};
+
+ControllerES9018K2M.prototype.getEffectiveCardNumber = function() {
+  var self = this;
+
+  if (self.cardNumber >= 0) {
+    return self.cardNumber;
+  }
+  return self.getAutoDetectedCard();
+};
+
+ControllerES9018K2M.prototype.registerVolumeOverride = function() {
+  var self = this;
+
+  var effectiveCard = self.getEffectiveCardNumber();
+
+  self.logger.info('ES9018K2M: Registering volume override for card ' + effectiveCard);
+
+  try {
+    self.commandRouter.executeOnPlugin(
+      'audio_interface',
+      'alsa_controller',
+      'setDeviceVolumeOverride',
+      {
+        card: effectiveCard,
+        pluginType: 'system_hardware',
+        pluginName: 'es9018k2m',
+        overrideMixerType: 'Hardware',
+        overrideAvoidSoftwareMixer: true
+      }
+    );
+    self.volumeOverrideRegistered = true;
+    self.logger.info('ES9018K2M: Volume override registered successfully');
+  } catch (err) {
+    self.logger.error('ES9018K2M: Failed to register volume override: ' + err.message);
+    self.volumeOverrideRegistered = false;
+  }
+};
+
+ControllerES9018K2M.prototype.unregisterVolumeOverride = function() {
+  var self = this;
+
+  self.logger.info('ES9018K2M: Unregistering volume override');
+
+  try {
+    self.commandRouter.executeOnPlugin(
+      'audio_interface',
+      'alsa_controller',
+      'setDeviceVolumeOverride',
+      {}
+    );
+    self.volumeOverrideRegistered = false;
+    self.logger.info('ES9018K2M: Volume override unregistered');
+  } catch (err) {
+    self.logger.error('ES9018K2M: Failed to unregister volume override: ' + err.message);
+  }
+};
+
+// Called by volumecontrol.js when user changes volume (hardware mode)
+ControllerES9018K2M.prototype.alsavolume = function(VolumeInteger) {
+  var self = this;
+
+  self.logDebug('ES9018K2M: alsavolume called: ' + VolumeInteger);
+
+  if (!self.deviceFound) {
+    return libQ.resolve();
+  }
+
+  var newVolume = parseInt(VolumeInteger, 10);
+  if (isNaN(newVolume)) {
+    newVolume = 100;
+  }
+  newVolume = Math.max(0, Math.min(100, newVolume));
+
+  var oldVolume = self.currentVolume;
+
+  // Use graceful ramping if enabled and volume change is significant
+  if (self.gracefulVolume && Math.abs(newVolume - oldVolume) > 5) {
+    self.gracefulVolumeChangeSync(oldVolume, newVolume);
+  } else {
+    self.setVolumeImmediate(newVolume);
+  }
+
+  self.currentVolume = newVolume;
+  self.lastVolume = newVolume;
+
+  // Push state back to Volumio so UI reflects the change
+  self.commandRouter.volumioupdatevolume({
+    vol: newVolume,
+    mute: self.currentMute
+  });
+
+  return libQ.resolve();
+};
+
+// Called to retrieve current volume state (hardware mode)
+ControllerES9018K2M.prototype.retrievevolume = function() {
+  var self = this;
+
+  return libQ.resolve({
+    vol: self.currentVolume,
+    mute: self.currentMute
+  });
 };
 
 // ---------------------------------------------------------------------------
@@ -415,8 +604,9 @@ ControllerES9018K2M.prototype.installSeekIntercept = function() {
 
     // Pre-emptive mute (synchronous - blocks until complete)
     if (self.deviceFound && self.seekMuteMs > 0) {
-      self.setMuteSync(true);
-      self.logDebug('ES9018K2M: Pre-emptive mute applied');
+      // Always use graceful mute for seeks (this is the primary use case)
+      self.gracefulMuteSync(true);
+      self.logDebug('ES9018K2M: Pre-emptive graceful mute applied');
     }
 
     // Execute original seek
@@ -428,8 +618,8 @@ ControllerES9018K2M.prototype.installSeekIntercept = function() {
         // Check if we should unmute (not user-muted, still playing)
         var state = self.commandRouter.volumioGetState();
         if (state && state.status === 'play' && !state.mute) {
-          self.setMuteSync(false);
-          self.logDebug('ES9018K2M: Unmuted after seek');
+          self.gracefulMuteSync(false);
+          self.logDebug('ES9018K2M: Graceful unmute after seek');
         }
       }, self.seekMuteMs);
     }
@@ -608,7 +798,7 @@ ControllerES9018K2M.prototype.stopFallbackPoller = function() {
 };
 
 // ---------------------------------------------------------------------------
-// Volume Sync - Direct callback (no socket needed)
+// Volume Sync - Software mode (callback-based)
 // ---------------------------------------------------------------------------
 
 ControllerES9018K2M.prototype.startVolumeSync = function() {
@@ -628,21 +818,33 @@ ControllerES9018K2M.prototype.startVolumeSync = function() {
 
     if (typeof volume === 'object' && typeof volume.vol === 'number') {
       if (volume.vol !== self.lastVolume) {
-        self.setVolume(volume.vol);
+        // Use graceful volume change if enabled
+        if (self.gracefulVolume && self.lastVolume !== null &&
+            Math.abs(volume.vol - self.lastVolume) > 5) {
+          self.gracefulVolumeChangeSync(self.lastVolume, volume.vol);
+        } else {
+          self.setVolumeImmediate(volume.vol);
+        }
         self.lastVolume = volume.vol;
+        self.currentVolume = volume.vol;
       }
       if (typeof volume.mute === 'boolean') {
         // Only apply mute if playing - don't override seek mute
         var state = self.commandRouter.volumioGetState();
         if (state && state.status === 'play') {
-          self.setMuteSync(volume.mute);
+          if (self.gracefulTransitions) {
+            self.gracefulMuteSync(volume.mute);
+          } else {
+            self.setMuteSync(volume.mute);
+          }
+          self.currentMute = volume.mute;
         }
       }
     }
   };
 
   self.commandRouter.addCallback('volumioupdatevolume', self.volumeCallback);
-  self.logger.info('ES9018K2M: Volume sync started');
+  self.logger.info('ES9018K2M: Volume sync started (software mode)');
 };
 
 ControllerES9018K2M.prototype.stopVolumeSync = function() {
@@ -674,20 +876,40 @@ ControllerES9018K2M.prototype.handleStateChange = function(state) {
 
     if (status === 'stop' || status === 'pause') {
       if (self.lastStatus === 'play') {
-        self.setMuteSync(true);
+        // Use graceful mute for transitions if enabled
+        if (self.gracefulTransitions) {
+          self.gracefulMuteSync(true);
+        } else {
+          self.setMuteSync(true);
+        }
+        self.currentMute = true;
       }
     } else if (status === 'play') {
       if (self.lastStatus !== 'play' && !mute) {
-        self.setMuteSync(false);
+        // Use graceful unmute for transitions if enabled
+        if (self.gracefulTransitions) {
+          self.gracefulMuteSync(false);
+        } else {
+          self.setMuteSync(false);
+        }
+        self.currentMute = false;
       }
     }
     self.lastStatus = status;
   }
 
-  // Volume sync from state (backup path)
-  if (typeof volume === 'number' && volume !== self.lastVolume) {
-    self.setVolume(volume);
-    self.lastVolume = volume;
+  // Volume sync from state (backup path for software mode)
+  if (self.volumeMode === 'software') {
+    if (typeof volume === 'number' && volume !== self.lastVolume) {
+      if (self.gracefulVolume && self.lastVolume !== null &&
+          Math.abs(volume - self.lastVolume) > 5) {
+        self.gracefulVolumeChangeSync(self.lastVolume, volume);
+      } else {
+        self.setVolumeImmediate(volume);
+      }
+      self.lastVolume = volume;
+      self.currentVolume = volume;
+    }
   }
 };
 
@@ -695,19 +917,35 @@ ControllerES9018K2M.prototype.handleStateChange = function(state) {
 // DAC Control Functions
 // ---------------------------------------------------------------------------
 
+// Convert Volumio volume (0-100) to register value (0x00-0x63)
+ControllerES9018K2M.prototype.volumeToRegister = function(vol) {
+  var DAC_MIN_GAIN = 0x63;  // -49.5dB
+  var DAC_MUTE_GAIN = 0xFF;
+
+  if (vol <= 0) {
+    return DAC_MUTE_GAIN;
+  }
+  return Math.round(DAC_MIN_GAIN - (vol * DAC_MIN_GAIN / 100));
+};
+
+// Set volume immediately without ramping
+ControllerES9018K2M.prototype.setVolumeImmediate = function(vol) {
+  var self = this;
+
+  var attenuation = self.volumeToRegister(vol);
+
+  var leftAtten = Math.min(255, attenuation + self.lBal);
+  self.i2cWriteSync(0x0F, leftAtten);
+
+  var rightAtten = Math.min(255, attenuation + self.rBal);
+  self.i2cWriteSync(0x10, rightAtten);
+};
+
+// Async version for non-critical paths
 ControllerES9018K2M.prototype.setVolume = function(vol) {
   var self = this;
 
-  var DAC_MAX_GAIN = 0x00;
-  var DAC_MIN_GAIN = 0x63;
-  var DAC_MUTE_GAIN = 0xFF;
-
-  var attenuation;
-  if (vol <= 0) {
-    attenuation = DAC_MUTE_GAIN;
-  } else {
-    attenuation = Math.round(DAC_MIN_GAIN - (vol * DAC_MIN_GAIN / 100));
-  }
+  var attenuation = self.volumeToRegister(vol);
 
   var leftAtten = Math.min(255, attenuation + self.lBal);
   self.i2cWrite(0x0F, leftAtten);
@@ -740,6 +978,119 @@ ControllerES9018K2M.prototype.setMuteSync = function(mute) {
   self.i2cWriteSync(0x07, self.reg7);
 };
 
+// ---------------------------------------------------------------------------
+// Graceful Volume/Mute - Volume ramping for smooth transitions
+// ---------------------------------------------------------------------------
+
+// Graceful volume change between two levels
+ControllerES9018K2M.prototype.gracefulVolumeChangeSync = function(fromVol, toVol) {
+  var self = this;
+
+  var steps = self.gracefulSteps;
+
+  // If steps is 0 or 1, just set directly
+  if (steps <= 1) {
+    self.setVolumeImmediate(toVol);
+    return;
+  }
+
+  // Calculate intermediate volume levels
+  var volDiff = toVol - fromVol;
+
+  for (var i = 1; i <= steps; i++) {
+    var ratio = i / steps;
+    var stepVol;
+
+    if (i === steps) {
+      stepVol = toVol;  // Final step is exact target
+    } else {
+      stepVol = Math.round(fromVol + (volDiff * ratio));
+    }
+
+    var regVal = self.volumeToRegister(stepVol);
+    var leftVal = Math.min(0xFF, regVal + self.lBal);
+    var rightVal = Math.min(0xFF, regVal + self.rBal);
+
+    self.i2cWriteSync(0x0F, leftVal);
+    self.i2cWriteSync(0x10, rightVal);
+  }
+};
+
+// Graceful mute/unmute using volume ramping
+ControllerES9018K2M.prototype.gracefulMuteSync = function(mute) {
+  var self = this;
+
+  var steps = self.gracefulSteps;
+
+  // If steps is 0 or 1, fall back to instant mute
+  if (steps <= 1) {
+    self.setMuteSync(mute);
+    return;
+  }
+
+  // Get current volume register value based on last known volume
+  var currentVol = self.currentVolume !== null ? self.currentVolume : 50;
+  var targetReg = self.volumeToRegister(currentVol);
+  var muteReg = 0xFF;
+
+  // Calculate ramp values using linear interpolation
+  var rampValues = [];
+
+  if (mute) {
+    // Ramp from current volume to mute
+    for (var i = 1; i <= steps; i++) {
+      var ratio = i / steps;
+      if (i === steps) {
+        // Final step is always full mute
+        rampValues.push(muteReg);
+      } else {
+        // Linear interpolation from current to mute
+        var stepReg = Math.round(targetReg + (muteReg - targetReg) * ratio);
+        rampValues.push(Math.min(0xFF, stepReg));
+      }
+    }
+  } else {
+    // Ramp from mute to current volume
+    for (var j = steps - 1; j >= 0; j--) {
+      var ratio = j / steps;
+      if (j === steps - 1) {
+        // First step from mute - start at high attenuation
+        var startReg = Math.round(targetReg + (muteReg - targetReg) * ratio);
+        rampValues.push(Math.min(0xFF, startReg));
+      } else if (j === 0) {
+        // Final step is target volume
+        rampValues.push(targetReg);
+      } else {
+        var stepReg = Math.round(targetReg + (muteReg - targetReg) * ratio);
+        rampValues.push(Math.min(0xFF, stepReg));
+      }
+    }
+  }
+
+  // Execute ramp with balance applied
+  for (var k = 0; k < rampValues.length; k++) {
+    var regVal = rampValues[k];
+    var leftVal = Math.min(0xFF, regVal + self.lBal);
+    var rightVal = Math.min(0xFF, regVal + self.rBal);
+
+    self.i2cWriteSync(0x0F, leftVal);
+    self.i2cWriteSync(0x10, rightVal);
+  }
+
+  // For mute, also set hardware mute bit for complete silence
+  // For unmute, clear hardware mute bit
+  if (mute) {
+    self.reg7 = self.reg7 | 0x01;
+  } else {
+    self.reg7 = self.reg7 & 0xFE;
+  }
+  self.i2cWriteSync(0x07, self.reg7);
+};
+
+// ---------------------------------------------------------------------------
+// Balance Control
+// ---------------------------------------------------------------------------
+
 ControllerES9018K2M.prototype.setBalance = function(balance) {
   var self = this;
 
@@ -754,8 +1105,8 @@ ControllerES9018K2M.prototype.setBalance = function(balance) {
 
   self.config.set('balance', balance);
 
-  if (self.lastVolume !== null) {
-    self.setVolume(self.lastVolume);
+  if (self.currentVolume !== null) {
+    self.setVolumeImmediate(self.currentVolume);
   }
 };
 
@@ -854,16 +1205,72 @@ ControllerES9018K2M.prototype.checkDeviceStatus = function() {
 ControllerES9018K2M.prototype.saveDeviceSettings = function(data) {
   var self = this;
 
+  // Volume mode - check if changed
+  var newVolumeMode = (data.volumeMode && data.volumeMode.value) || 'software';
+  var volumeModeChanged = (newVolumeMode !== self.volumeMode);
+
+  self.volumeMode = newVolumeMode;
+  self.config.set('volumeMode', self.volumeMode);
+
+  // Card number - parse 'auto' or numeric value
+  var cardInput = data.cardNumber || 'auto';
+  if (typeof cardInput === 'string') {
+    cardInput = cardInput.toLowerCase().trim();
+    if (cardInput.startsWith('auto')) {
+      self.cardNumber = -1;
+    } else {
+      var parsed = parseInt(cardInput, 10);
+      self.cardNumber = isNaN(parsed) ? -1 : parsed;
+    }
+  } else {
+    self.cardNumber = parseInt(cardInput, 10) || -1;
+  }
+  self.config.set('cardNumber', self.cardNumber);
+
+  // Seek mute duration
   var seekMuteMs = parseInt(data.seekMuteMs, 10) || 150;
   self.seekMuteMs = Math.max(0, Math.min(2000, seekMuteMs));
   self.config.set('seekMuteMs', self.seekMuteMs);
 
+  // Graceful mute steps
+  var gracefulSteps = parseInt(data.gracefulSteps, 10) || 3;
+  self.gracefulSteps = Math.max(1, Math.min(5, gracefulSteps));
+  self.config.set('gracefulSteps', self.gracefulSteps);
+
+  // Graceful transitions toggle
+  self.gracefulTransitions = data.gracefulTransitions !== false;
+  self.config.set('gracefulTransitions', self.gracefulTransitions);
+
+  // Graceful volume toggle
+  self.gracefulVolume = data.gracefulVolume !== false;
+  self.config.set('gracefulVolume', self.gracefulVolume);
+
+  // Debug logging
   self.debugLogging = data.debugLogging || false;
   self.config.set('debugLogging', self.debugLogging);
 
-  self.commandRouter.pushToastMessage('success',
-    self.getI18nString('PLUGIN_NAME'),
-    self.getI18nString('SETTINGS_SAVED'));
+  // Handle volume mode change
+  if (volumeModeChanged && self.deviceFound) {
+    if (self.volumeMode === 'hardware') {
+      // Switch from software to hardware
+      self.stopVolumeSync();
+      self.registerVolumeOverride();
+      self.commandRouter.pushToastMessage('info',
+        self.getI18nString('PLUGIN_NAME'),
+        self.getI18nString('VOLUME_MODE_CHANGED_HW'));
+    } else {
+      // Switch from hardware to software
+      self.unregisterVolumeOverride();
+      self.startVolumeSync();
+      self.commandRouter.pushToastMessage('info',
+        self.getI18nString('PLUGIN_NAME'),
+        self.getI18nString('VOLUME_MODE_CHANGED_SW'));
+    }
+  } else {
+    self.commandRouter.pushToastMessage('success',
+      self.getI18nString('PLUGIN_NAME'),
+      self.getI18nString('SETTINGS_SAVED'));
+  }
 };
 
 ControllerES9018K2M.prototype.saveI2cSettings = function(data) {
@@ -951,6 +1358,8 @@ ControllerES9018K2M.prototype.resetDevice = function() {
     return;
   }
 
+  self.config.set('volumeMode', 'software');
+  self.config.set('cardNumber', -1);
   self.config.set('balance', 0);
   self.config.set('fir', 1);
   self.config.set('iir', 0);
@@ -958,11 +1367,22 @@ ControllerES9018K2M.prototype.resetDevice = function() {
   self.config.set('i2sDpll', 0x50);
   self.config.set('dsdDpll', 0x0A);
   self.config.set('seekMuteMs', 150);
+  self.config.set('gracefulSteps', 3);
+  self.config.set('gracefulTransitions', true);
+  self.config.set('gracefulVolume', true);
   self.config.set('debugLogging', false);
+
+  // Unregister volume override if active
+  if (self.volumeOverrideRegistered) {
+    self.unregisterVolumeOverride();
+  }
 
   self.loadConfig();
   self.initDevice();
   self.applySettings();
+
+  // Start software mode volume sync
+  self.startVolumeSync();
 
   self.commandRouter.pushToastMessage('success',
     self.getI18nString('PLUGIN_NAME'),
