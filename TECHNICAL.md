@@ -28,7 +28,7 @@ The plugin uses multiple mechanisms for DAC control:
 |  commandRouter   | --> |  Seek Intercept   | --> +-----+-------+
 |  volumioSeek()   |     |  Wrapper          |     |  Pre-emptive|
 +------------------+     +-------------------+     |  Mute       |
-                                                  +-------------+
+                                                   +-------------+
 ```
 
 ## Volume Control Modes
