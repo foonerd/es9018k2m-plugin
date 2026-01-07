@@ -164,11 +164,24 @@ For architecture, register configuration, and implementation details, see [TECHN
 
 ## Credits
 
-- **Audiophonics** - Serial sync reference
-- **Chris Song** - Original plugin concept
-- **Darmur** - ES9038Q2M register configuration reference
-- **Grey_bird** - I2C control implementation
-- **luoyi** - Kernel driver reference
+## Credits
+
+This plugin builds upon work and contributions from:
+
+- **Audiophonics** - Serial sync reference implementation
+  https://github.com/audiophonics/ES9018K2M_serial_sync
+
+- **Chris Song** - Original volumio-es9018k2m-plugin concept
+  https://github.com/ChrisPanda/volumio-es9018k2m-plugin
+
+- **Darmur** - ES9038Q2M optimal register configuration
+  https://github.com/Darmur
+
+- **Grey_bird (DanyHovard)** - I2C control implementation
+  https://github.com/DanyHovard/es9018k2m_volumio_I2C_control
+
+- **luoyi** - Rpi-ES9018K2M-DAC kernel driver reference
+  https://github.com/luoyi/Rpi-ES9018K2M-DAC
 
 ## License
 
