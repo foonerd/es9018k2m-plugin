@@ -29,7 +29,7 @@ Hardware control plugin for ES9018K2M-based DAC HATs on Raspberry Pi running Vol
 ### 2. Install the Plugin
 
 ```bash
-git clone --depth=1 -b dev-websocket https://github.com/foonerd/es9018k2m-plugin.git
+git clone --depth=1 https://github.com/foonerd/es9018k2m-plugin.git
 cd es9018k2m-plugin
 volumio plugin install
 ```
