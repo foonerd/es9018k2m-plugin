@@ -164,8 +164,6 @@ For architecture, register configuration, and implementation details, see [TECHN
 
 ## Credits
 
-## Credits
-
 This plugin builds upon work and contributions from:
 
 - **Audiophonics** - Serial sync reference implementation
