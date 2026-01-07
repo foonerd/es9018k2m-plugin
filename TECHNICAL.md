@@ -71,14 +71,41 @@ self.commandRouter.addCallback('volumioupdatevolume', self.volumeCallback);
 
 ## Startup Volume Logic (Hardware Mode)
 
-The plugin applies startup volume settings in priority order when starting in Hardware mode.
+The plugin applies startup volume settings AFTER Volumio completes its own startup sequence.
+
+### The Problem
+
+Volumio's `volumiosetStartupVolume` runs ~5 seconds after plugins start, calling our `alsavolume()` and overwriting any volume we set during `onStart()`.
+
+### The Solution
+
+Wait for `process.env.VOLUMIO_SYSTEM_STATUS === 'ready'` before applying startup volume. This pattern is borrowed from the autostart plugin.
+
+```javascript
+ControllerES9018K2M.prototype.applyStartupVolume = function() {
+  var self = this;
+  
+  function checkSystemReady() {
+    var systemStatus = process.env.VOLUMIO_SYSTEM_STATUS;
+    
+    if (systemStatus === 'ready') {
+      self.doApplyStartupVolume();
+    } else {
+      setTimeout(checkSystemReady, 1000);
+    }
+  }
+  
+  checkSystemReady();
+};
+```
 
 ### Priority Order
 
 ```
 1. Start Muted (highest priority)
    - Mute DAC immediately
-   - Keep system volume unchanged for slider position
+   - If rememberLastVolume also enabled: set slider to lastSavedVolume
+   - Otherwise: keep system volume for slider position
    
 2. Remember Last Volume
    - Restore lastSavedVolume from config
@@ -95,9 +122,10 @@ The plugin applies startup volume settings in priority order when starting in Ha
 ### Implementation
 
 ```javascript
-ControllerES9018K2M.prototype.applyStartupVolume = function() {
+ControllerES9018K2M.prototype.doApplyStartupVolume = function() {
   var self = this;
   
+  // Get current system volume (Volumio has now set its startup volume)
   var state = self.commandRouter.volumioGetState();
   var systemVolume = (state && typeof state.volume === 'number') ? state.volume : 100;
   
@@ -107,7 +135,12 @@ ControllerES9018K2M.prototype.applyStartupVolume = function() {
   // Priority 1: Start muted
   if (self.startMuted) {
     shouldMute = true;
-    targetVolume = systemVolume;  // Keep slider position
+    // If rememberLastVolume also enabled, use that for slider position
+    if (self.rememberLastVolume && self.lastSavedVolume >= 0) {
+      targetVolume = self.lastSavedVolume;
+    } else {
+      targetVolume = systemVolume;
+    }
   }
   // Priority 2: Remember last volume
   else if (self.rememberLastVolume && self.lastSavedVolume >= 0) {
@@ -118,7 +151,7 @@ ControllerES9018K2M.prototype.applyStartupVolume = function() {
     targetVolume = self.safeStartupVolume;
   }
 
-  // Apply to DAC
+  // Apply to DAC directly
   self.currentVolume = targetVolume;
   self.setVolumeImmediate(targetVolume);
 
@@ -127,7 +160,7 @@ ControllerES9018K2M.prototype.applyStartupVolume = function() {
     self.currentMute = true;
   }
 
-  // Push state to Volumio
+  // Push state to Volumio so UI reflects our override
   self.commandRouter.volumioupdatevolume({
     vol: targetVolume,
     mute: shouldMute
@@ -143,9 +176,13 @@ Last volume is saved to config on plugin stop/shutdown/reboot:
 if (self.volumeMode === 'hardware' && self.rememberLastVolume) {
   if (self.currentVolume !== self.lastSavedVolume) {
     self.config.set('lastSavedVolume', self.currentVolume);
+    // Force flush to disk - config may not be saved before shutdown otherwise
+    self.config.save();
   }
 }
 ```
+
+**Important:** `config.save()` must be called to force flush to disk. Without it, config changes may be lost during shutdown.
 
 ## Graceful Volume Ramping
 

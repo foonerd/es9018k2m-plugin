@@ -59,6 +59,7 @@ When using Hardware mode with amp that powers on at full volume:
 **Option 1: Start Muted**
 - Enable **Start Muted** in Volume Control section
 - DAC starts muted, use volume slider to unmute
+- If **Remember Last Volume** also enabled, slider shows remembered level
 
 **Option 2: Safe Startup Volume**
 - Enable **Safe Startup Volume**
@@ -135,12 +136,17 @@ For architecture, register configuration, and implementation details, see [TECHN
 
 ## Changelog
 
+### v1.2.3
+- Fixed startup volume timing with VOLUMIO_SYSTEM_STATUS polling
+- Added config.save() for reliable volume persistence across reboots
+- Start muted now respects remember last volume for slider position
+- Dynamic UI with visibleIf (no page refresh needed)
+
 ### v1.2.2
 - Safe startup volume (caps volume on start)
 - Start muted option
 - Remember last volume
-- UI redesign with dynamic visibleIf (no refresh needed)
-- Reorganized sections: Device Detection, Volume Control, Mute & Transitions
+- UI redesign with Device Detection, Volume Control, Mute & Transitions sections
 
 ### v1.2.1
 - Hardware Volume Override mode
