@@ -7,6 +7,14 @@
     "type": "number",
     "value": 72
   },
+  "volumeMode": {
+    "type": "string",
+    "value": "software"
+  },
+  "cardNumber": {
+    "type": "number",
+    "value": -1
+  },
   "balance": {
     "type": "number",
     "value": 0
@@ -33,7 +41,19 @@
   },
   "seekMuteMs": {
     "type": "number",
-    "value": 500
+    "value": 150
+  },
+  "gracefulSteps": {
+    "type": "number",
+    "value": 3
+  },
+  "gracefulTransitions": {
+    "type": "boolean",
+    "value": true
+  },
+  "gracefulVolume": {
+    "type": "boolean",
+    "value": true
   },
   "debugLogging": {
     "type": "boolean",

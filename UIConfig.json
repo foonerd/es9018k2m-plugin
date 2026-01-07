@@ -31,27 +31,76 @@
       },
       "saveButton": {
         "label": "TRANSLATE.SAVE",
-        "data": ["seekMuteMs", "debugLogging"]
+        "data": ["volumeMode", "cardNumber", "seekMuteMs", "gracefulSteps", "gracefulTransitions", "gracefulVolume", "debugLogging"]
       },
       "content": [
+        {
+          "id": "volumeMode",
+          "element": "select",
+          "label": "TRANSLATE.VOLUME_MODE",
+          "doc": "TRANSLATE.VOLUME_MODE_DOC",
+          "value": { "value": "software", "label": "Software (Callback)" },
+          "options": [
+            { "value": "software", "label": "TRANSLATE.VOLUME_MODE_SOFTWARE" },
+            { "value": "hardware", "label": "TRANSLATE.VOLUME_MODE_HARDWARE" }
+          ]
+        },
+        {
+          "id": "cardNumber",
+          "element": "input",
+          "type": "text",
+          "label": "TRANSLATE.CARD_NUMBER",
+          "doc": "TRANSLATE.CARD_NUMBER_DOC",
+          "value": "auto",
+          "attributes": [
+            { "placeholder": "auto" }
+          ]
+        },
         {
           "id": "seekMuteMs",
           "element": "input",
           "type": "number",
           "label": "TRANSLATE.SEEK_MUTE_MS",
-          "description": "TRANSLATE.SEEK_MUTE_MS_DESC",
-          "value": 500,
+          "doc": "TRANSLATE.SEEK_MUTE_MS_DOC",
+          "value": 150,
           "attributes": [
-            { "placeholder": "500" },
+            { "placeholder": "150" },
             { "min": 0 },
             { "max": 2000 }
           ]
         },
         {
+          "id": "gracefulSteps",
+          "element": "input",
+          "type": "number",
+          "label": "TRANSLATE.GRACEFUL_STEPS",
+          "doc": "TRANSLATE.GRACEFUL_STEPS_DOC",
+          "value": 3,
+          "attributes": [
+            { "placeholder": "3" },
+            { "min": 1 },
+            { "max": 5 }
+          ]
+        },
+        {
+          "id": "gracefulTransitions",
+          "element": "switch",
+          "label": "TRANSLATE.GRACEFUL_TRANSITIONS",
+          "doc": "TRANSLATE.GRACEFUL_TRANSITIONS_DOC",
+          "value": true
+        },
+        {
+          "id": "gracefulVolume",
+          "element": "switch",
+          "label": "TRANSLATE.GRACEFUL_VOLUME",
+          "doc": "TRANSLATE.GRACEFUL_VOLUME_DOC",
+          "value": true
+        },
+        {
           "id": "debugLogging",
           "element": "switch",
           "label": "TRANSLATE.DEBUG_LOGGING",
-          "description": "TRANSLATE.DEBUG_LOGGING_DESC",
+          "doc": "TRANSLATE.DEBUG_LOGGING_DOC",
           "value": false
         },
         {
@@ -72,6 +121,7 @@
           "id": "reset_device",
           "element": "button",
           "label": "TRANSLATE.RESET_DEVICE",
+          "doc": "TRANSLATE.RESET_DEVICE_DOC",
           "onClick": {
             "type": "emit",
             "message": "callMethod",
@@ -108,7 +158,7 @@
           "element": "input",
           "type": "number",
           "label": "TRANSLATE.I2C_BUS",
-          "description": "TRANSLATE.I2C_BUS_DESC",
+          "doc": "TRANSLATE.I2C_BUS_DOC",
           "value": 1,
           "attributes": [
             { "placeholder": "1" },
@@ -121,7 +171,7 @@
           "element": "input",
           "type": "text",
           "label": "TRANSLATE.I2C_ADDRESS",
-          "description": "TRANSLATE.I2C_ADDRESS_DESC",
+          "doc": "TRANSLATE.I2C_ADDRESS_DOC",
           "value": "0x48",
           "attributes": [
             { "placeholder": "0x48" }
@@ -148,7 +198,7 @@
           "id": "balance",
           "element": "equalizer",
           "label": "TRANSLATE.BALANCE_ADJUST",
-          "description": "TRANSLATE.BALANCE_DESC",
+          "doc": "TRANSLATE.BALANCE_DOC",
           "config": {
             "orientation": "horizontal",
             "bars": [
@@ -197,7 +247,7 @@
           "id": "fir",
           "element": "select",
           "label": "TRANSLATE.FIR_FILTER",
-          "description": "TRANSLATE.FIR_DESC",
+          "doc": "TRANSLATE.FIR_DOC",
           "value": { "value": 1, "label": "Fast Roll-Off" },
           "options": [
             { "value": 0, "label": "Slow Roll-Off" },
@@ -210,7 +260,7 @@
           "id": "iir",
           "element": "select",
           "label": "TRANSLATE.IIR_FILTER",
-          "description": "TRANSLATE.IIR_DESC",
+          "doc": "TRANSLATE.IIR_DOC",
           "value": { "value": 0, "label": "47K (PCM)" },
           "options": [
             { "value": 0, "label": "47K (PCM)" },
@@ -224,7 +274,7 @@
           "id": "deemphasis",
           "element": "select",
           "label": "TRANSLATE.DEEMPHASIS",
-          "description": "TRANSLATE.DEEMPHASIS_DESC",
+          "doc": "TRANSLATE.DEEMPHASIS_DOC",
           "value": { "value": 74, "label": "Off" },
           "options": [
             { "value": 74, "label": "Off" },
@@ -240,7 +290,6 @@
       "element": "section",
       "label": "TRANSLATE.DPLL",
       "icon": "fa-signal",
-      "description": "TRANSLATE.DPLL_DESC",
       "onSave": {
         "type": "controller",
         "endpoint": "system_hardware/es9018k2m",
@@ -255,7 +304,7 @@
           "id": "i2sDpll",
           "element": "select",
           "label": "TRANSLATE.I2S_DPLL",
-          "description": "TRANSLATE.I2S_DPLL_DESC",
+          "doc": "TRANSLATE.I2S_DPLL_DOC",
           "value": { "value": 80, "label": "5" },
           "options": [
             { "value": 0, "label": "Off" },
@@ -280,7 +329,7 @@
           "id": "dsdDpll",
           "element": "select",
           "label": "TRANSLATE.DSD_DPLL",
-          "description": "TRANSLATE.DSD_DPLL_DESC",
+          "doc": "TRANSLATE.DSD_DPLL_DOC",
           "value": { "value": 10, "label": "10" },
           "options": [
             { "value": 0, "label": "Off" },

@@ -1,144 +1,122 @@
 # ES9018K2M DAC Control Plugin for Volumio
 
-Hardware control plugin for ES9018K2M-based DAC HATs on Raspberry Pi running Volumio.
+Hardware control plugin for ES9018K2M-based DAC HATs on Raspberry Pi running Volumio 4.
 
 ## Features
 
-- **Automatic Volume Sync** - DAC volume follows Volumio volume control
-- **Digital Filters** - FIR filter selection (slow/fast roll-off, minimum phase, bypass)
-- **IIR Bandwidth** - Adjustable for PCM and DSD content
+- **Hardware Volume Mode** - Enables volume slider even with Mixer Type: None
+- **Graceful Volume Ramping** - Smooth fade in/out eliminates audible pops and clicks
+- **Pop-Free Seeks** - Pre-emptive mute prevents audio discontinuities
+- **Digital Filters** - FIR/IIR filter selection
 - **DPLL Jitter Reduction** - Configurable for I2S and DSD sources
 - **Channel Balance** - Fine-tune left/right balance
-- **Hardware Pop Prevention** - Optimal register configuration for smooth playback
 
 ## Supported Hardware
-
-Works with any ES9018K2M-based DAC HAT, including:
 
 - Aoide DAC II
 - Audiophonics I-SABRE ES9018K2M
 - TeraDAK ES9018K2M
 - Other generic ES9018K2M I2S DAC boards
 
-## Installation
+## Quick Start
 
-### Step 1: Configure Volumio DAC Output
+### 1. Configure Volumio DAC Output
 
 1. Go to **Volumio Settings > Playback Options**
 2. Under **I2S DAC**, select **i2s-dac** (or "Generic I2S DAC")
-3. Click **Save**
-4. **Reboot** when prompted
+3. Click **Save** and **Reboot**
 
-### Step 2: Install the Plugin
-
-From Volumio plugin store (if available), or manually:
+### 2. Install the Plugin
 
 ```bash
-git clone --depth=1 https://github.com/foonerd/es9018k2m-plugin.git
+git clone --depth=1 -b dev-websocket https://github.com/foonerd/es9018k2m-plugin.git
 cd es9018k2m-plugin
 volumio plugin install
 ```
 
-### Step 3: Enable and Configure
+### 3. Enable the Plugin
 
 1. Go to **Volumio Settings > Plugins > Installed Plugins**
 2. Enable **ES9018K2M DAC Control**
-3. Click **Settings** to configure filters, DPLL, and balance
 
-## Configuration
+## Common Tasks
 
-### I2C Settings
+### Get Volume Slider Working
 
-- **I2C Bus**: Usually 1 for Raspberry Pi
-- **I2C Address**: Default 0x48 (common alternatives: 0x49, 0x4A, 0x4B)
+If you don't see a volume slider:
 
-### Digital Filters
+1. Open plugin settings
+2. Set **Volume Control Mode** to "Hardware (Override)"
+3. Save - slider should appear immediately
 
-- **FIR Filter**: Controls the oversampling filter shape
-  - Fast Roll-Off (default) - sharp cutoff, some pre-ringing
-  - Slow Roll-Off - gentler cutoff, less pre-ringing
-  - Minimum Phase - no pre-ringing, asymmetric impulse response
-  - Bypass - disables oversampling filter
+### Stop Pops and Clicks
 
-- **IIR Bandwidth**: Analog filter bandwidth
-  - 47K - recommended for PCM
-  - 50K/60K/70K - options for DSD content
-  - Bypass - disables IIR filter
+**During seeks:**
+- Increase **Seek Mute Duration** to 200-300ms
 
-- **De-emphasis**: For pre-emphasized recordings (rare, usually leave Off)
+**During play/pause:**
+- Enable **Graceful Play/Pause/Stop**
+- Increase **Graceful Ramp Steps** to 4 or 5
 
-### DPLL Settings
+**During volume changes:**
+- Enable **Graceful Volume Changes**
 
-Digital Phase-Locked Loop for jitter reduction:
+### Adjust Sound Signature
 
-- **I2S DPLL**: Level 5 is a good starting point
-- **DSD DPLL**: Level 10 recommended for DSD
+- **FIR Filter**: Try "Minimum Phase" for less pre-ringing
+- **DPLL**: Higher values = more jitter reduction (start with 5 for I2S)
 
-Higher values = more jitter reduction but may cause issues with some sources.
+## Configuration Reference
 
-## Technical Details
-
-### Register Configuration
-
-The plugin initializes the DAC with optimal register settings derived from ESS application notes and the ES9038Q2M reference implementation:
-
-| Register | Value | Function |
-|----------|-------|----------|
-| 0x0E | 0x8A | Soft-start: ramps to AVCC/2 on lock changes (pop prevention) |
-| 0x01 | 0xC4 | 32-bit I2S, auto-detect serial/DSD |
-| 0x06 | 0x47 | Volume ramp rate: fastest |
-| 0x0C | 0x5F | DPLL: I2S=5, DSD=15 |
-
-### Why No Custom Overlay?
-
-This plugin uses the standard `i2s-dac` overlay because:
-
-1. All ES9018K2M HATs have onboard oscillators (no MCLK from Pi needed)
-2. Register 0x0E soft-start handles sample rate changes at hardware level
-3. No kernel driver needed - I2C control via i2c-tools is sufficient
-4. Simpler setup, no overlay compilation required
+| Setting | Default | Description |
+|---------|---------|-------------|
+| Volume Control Mode | Software | Hardware mode enables slider with Mixer Type: None |
+| ALSA Card Number | auto | Manual override for multi-card setups |
+| Seek Mute Duration | 150ms | Time to mute during seeks (0 to disable) |
+| Graceful Ramp Steps | 3 | Steps for volume fade (1-5, more = smoother) |
+| Graceful Play/Pause/Stop | On | Fade on playback state changes |
+| Graceful Volume Changes | On | Fade on volume adjustments >5% |
+| I2C Bus | 1 | Usually 1 for Raspberry Pi |
+| I2C Address | 0x48 | Try 0x49, 0x4A, 0x4B if not detected |
 
 ## Troubleshooting
 
-### Device Not Detected
+| Problem | Solution |
+|---------|----------|
+| No volume slider | Set Volume Mode to "Hardware (Override)" |
+| Device not detected | Check I2C address, verify i2s-dac selected in Playback Options |
+| Pops during seek | Increase Seek Mute Duration |
+| Pops on play/pause | Enable Graceful Play/Pause/Stop, increase steps |
+| Pops on volume change | Enable Graceful Volume Changes |
+| Slider jumps back | Enable Debug Logging, check journalctl for errors |
 
-1. Verify i2s-dac is selected in Volumio Playback Options
-2. Reboot after changing DAC selection
-3. Check I2C address (try 0x48, 0x49, 0x4A, 0x4B)
-4. Verify I2C is enabled: `sudo raspi-config` > Interface Options > I2C
+## Technical Details
 
-### No Audio
+For architecture, register configuration, and implementation details, see [TECHNICAL.md](TECHNICAL.md).
 
-1. Ensure DAC is powered
-2. Check Volumio audio output is set correctly
-3. Try "Check Device" button in plugin settings
+## Changelog
 
-### Pops or Clicks
+### v1.2.1
+- Hardware Volume Override mode
+- Graceful volume ramping for all transitions
+- Configurable ramp steps (1-5)
+- Auto-detect or manual ALSA card selection
 
-The hardware soft-start (register 0x0E) should prevent pops. If you still hear them:
+### v1.2.0
+- Event-driven architecture with socket.io
+- Pre-emptive seek mute via commandRouter intercept
 
-1. Try increasing DPLL value
-2. Check power supply quality
-3. Some very old recordings with DC offset may still cause minor clicks
+### v1.1.1
+- Fixed chip ID detection
+- Fixed volume range (0-49.5dB)
 
 ## Credits
 
-This plugin builds upon work and contributions from:
-
-- **Audiophonics** - Serial sync reference implementation
-  https://github.com/audiophonics/ES9018K2M_serial_sync
-
-- **Chris Song** - Original volumio-es9018k2m-plugin concept
-  https://github.com/ChrisPanda/volumio-es9018k2m-plugin
-
-- **Darmur** - ES9038Q2M optimal register configuration
-  https://github.com/Darmur
-
-- **Grey_bird (DanyHovard)** - I2C control implementation
-  https://github.com/DanyHovard/es9018k2m_volumio_I2C_control
-
-- **luoyi** - Rpi-ES9018K2M-DAC kernel driver reference
-  https://github.com/luoyi/Rpi-ES9018K2M-DAC
+- **Audiophonics** - Serial sync reference
+- **Chris Song** - Original plugin concept
+- **Darmur** - Register configuration and volume override discovery
+- **Grey_bird** - I2C control implementation
+- **luoyi** - Kernel driver reference
 
 ## License
 
