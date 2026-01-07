@@ -5,6 +5,9 @@ Hardware control plugin for ES9018K2M-based DAC HATs on Raspberry Pi running Vol
 ## Features
 
 - **Hardware Volume Mode** - Enables volume slider even with Mixer Type: None
+- **Safe Startup Volume** - Caps volume on startup to protect speakers
+- **Start Muted** - Begin playback muted for safe system startup
+- **Remember Last Volume** - Restore previous volume level on restart
 - **Graceful Volume Ramping** - Smooth fade in/out eliminates audible pops and clicks
 - **Pop-Free Seeks** - Pre-emptive mute prevents audio discontinuities
 - **Digital Filters** - FIR/IIR filter selection
@@ -49,6 +52,24 @@ If you don't see a volume slider:
 2. Set **Volume Control Mode** to "Hardware (Override)"
 3. Save - slider should appear immediately
 
+### Protect Speakers on Startup
+
+When using Hardware mode with amp that powers on at full volume:
+
+**Option 1: Start Muted**
+- Enable **Start Muted** in Volume Control section
+- DAC starts muted, use volume slider to unmute
+
+**Option 2: Safe Startup Volume**
+- Enable **Safe Startup Volume**
+- Set **Safe Startup Level** (e.g. 25%)
+- Volume capped to this level if system volume exceeds it
+
+**Option 3: Remember Last Volume**
+- Enable **Remember Last Volume**
+- Restores your last volume setting on restart
+- Overrides safe startup if enabled
+
 ### Stop Pops and Clicks
 
 **During seeks:**
@@ -68,16 +89,33 @@ If you don't see a volume slider:
 
 ## Configuration Reference
 
+### Volume Control (Hardware Mode)
+
 | Setting | Default | Description |
 |---------|---------|-------------|
 | Volume Control Mode | Software | Hardware mode enables slider with Mixer Type: None |
 | ALSA Card Number | auto | Manual override for multi-card setups |
+| Start Muted | Off | Start DAC muted on plugin load |
+| Safe Startup Volume | Off | Cap volume on startup if exceeds safe level |
+| Safe Startup Level | 25% | Maximum startup volume when safe startup enabled |
+| Remember Last Volume | Off | Restore last volume on plugin start (overrides safe startup) |
+
+### Mute & Transitions
+
+| Setting | Default | Description |
+|---------|---------|-------------|
 | Seek Mute Duration | 150ms | Time to mute during seeks (0 to disable) |
 | Graceful Ramp Steps | 3 | Steps for volume fade (1-5, more = smoother) |
 | Graceful Play/Pause/Stop | On | Fade on playback state changes |
 | Graceful Volume Changes | On | Fade on volume adjustments >5% |
+
+### Device Detection
+
+| Setting | Default | Description |
+|---------|---------|-------------|
 | I2C Bus | 1 | Usually 1 for Raspberry Pi |
 | I2C Address | 0x48 | Try 0x49, 0x4A, 0x4B if not detected |
+| Debug Logging | Off | Enable verbose logging for troubleshooting |
 
 ## Troubleshooting
 
@@ -89,12 +127,20 @@ If you don't see a volume slider:
 | Pops on play/pause | Enable Graceful Play/Pause/Stop, increase steps |
 | Pops on volume change | Enable Graceful Volume Changes |
 | Slider jumps back | Enable Debug Logging, check journalctl for errors |
+| Volume too loud on startup | Enable Safe Startup Volume or Start Muted |
 
 ## Technical Details
 
 For architecture, register configuration, and implementation details, see [TECHNICAL.md](TECHNICAL.md).
 
 ## Changelog
+
+### v1.2.2
+- Safe startup volume (caps volume on start)
+- Start muted option
+- Remember last volume
+- UI redesign with dynamic visibleIf (no refresh needed)
+- Reorganized sections: Device Detection, Volume Control, Mute & Transitions
 
 ### v1.2.1
 - Hardware Volume Override mode
@@ -114,7 +160,7 @@ For architecture, register configuration, and implementation details, see [TECHN
 
 - **Audiophonics** - Serial sync reference
 - **Chris Song** - Original plugin concept
-- **Darmur** - Register configuration and volume override discovery
+- **Darmur** - ES9038Q2M register configuration reference
 - **Grey_bird** - I2C control implementation
 - **luoyi** - Kernel driver reference
 

@@ -15,6 +15,26 @@
     "type": "number",
     "value": -1
   },
+  "startMuted": {
+    "type": "boolean",
+    "value": false
+  },
+  "safeStartupEnabled": {
+    "type": "boolean",
+    "value": false
+  },
+  "safeStartupVolume": {
+    "type": "number",
+    "value": 25
+  },
+  "rememberLastVolume": {
+    "type": "boolean",
+    "value": false
+  },
+  "lastSavedVolume": {
+    "type": "number",
+    "value": -1
+  },
   "balance": {
     "type": "number",
     "value": 0
