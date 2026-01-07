@@ -11,20 +11,20 @@ The plugin uses multiple mechanisms for DAC control:
 |  Volumio UI      | --> |  alsa_controller  | --> |  Plugin     |
 |  Volume Slider   |     |  (Hardware Mode)  |     |  alsavolume |
 +------------------+     +-------------------+     +------+------+
-                                                         |
+                                                          |
 +------------------+     +-------------------+            v
 |  Volumio State   | --> |  volumioupdate-   | --> +-------------+
 |  Machine         |     |  volume callback  |     |  DAC I2C    |
 +------------------+     |  (Software Mode)  |     |  Registers  |
                          +-------------------+     +-------------+
                                                          ^
-+------------------+     +-------------------+            |
++------------------+     +-------------------+           |
 |  Volumio         | --> |  socket.io        | --> +-----+-------+
 |  Backend         |     |  pushState        |     |  State      |
 |  (localhost:3000)|     |  events           |     |  Handler    |
 +------------------+     +-------------------+     +-------------+
                                                          ^
-+------------------+     +-------------------+            |
++------------------+     +-------------------+           |
 |  commandRouter   | --> |  Seek Intercept   | --> +-----+-------+
 |  volumioSeek()   |     |  Wrapper          |     |  Pre-emptive|
 +------------------+     +-------------------+     |  Mute       |
