@@ -28,6 +28,13 @@ function ControllerES9018K2M(context) {
   self.cardNumber = -1;  // -1 = auto-detect
   self.volumeOverrideRegistered = false;
 
+  // Startup volume settings (hardware mode only)
+  self.startMuted = false;
+  self.safeStartupEnabled = false;
+  self.safeStartupVolume = 25;
+  self.rememberLastVolume = false;
+  self.lastSavedVolume = -1;  // -1 = not saved
+
   // Current volume/mute state for hardware mode
   self.currentVolume = 100;
   self.currentMute = false;
@@ -107,6 +114,7 @@ ControllerES9018K2M.prototype.onStart = function() {
         // Start appropriate volume control mode
         if (self.volumeMode === 'hardware') {
           self.registerVolumeOverride();
+          self.applyStartupVolume();
         } else {
           self.startVolumeSync();
         }
@@ -133,6 +141,15 @@ ControllerES9018K2M.prototype.onStop = function() {
 
   self.logger.info('ES9018K2M: Stopping plugin');
 
+  // Save volume if remember enabled (hardware mode only)
+  if (self.volumeMode === 'hardware' && self.rememberLastVolume) {
+    if (self.currentVolume !== self.lastSavedVolume) {
+      self.config.set('lastSavedVolume', self.currentVolume);
+      self.lastSavedVolume = self.currentVolume;
+      self.logDebug('ES9018K2M: Saved volume on stop: ' + self.currentVolume);
+    }
+  }
+
   // Remove seek intercept first
   self.removeSeekIntercept();
 
@@ -158,6 +175,14 @@ ControllerES9018K2M.prototype.onStop = function() {
 
 ControllerES9018K2M.prototype.onVolumioShutdown = function() {
   var self = this;
+
+  // Save volume if remember enabled
+  if (self.volumeMode === 'hardware' && self.rememberLastVolume) {
+    if (self.currentVolume !== self.lastSavedVolume) {
+      self.config.set('lastSavedVolume', self.currentVolume);
+    }
+  }
+
   self.removeSeekIntercept();
   if (self.volumeOverrideRegistered) {
     self.unregisterVolumeOverride();
@@ -170,6 +195,14 @@ ControllerES9018K2M.prototype.onVolumioShutdown = function() {
 
 ControllerES9018K2M.prototype.onVolumioReboot = function() {
   var self = this;
+
+  // Save volume if remember enabled
+  if (self.volumeMode === 'hardware' && self.rememberLastVolume) {
+    if (self.currentVolume !== self.lastSavedVolume) {
+      self.config.set('lastSavedVolume', self.currentVolume);
+    }
+  }
+
   self.removeSeekIntercept();
   if (self.volumeOverrideRegistered) {
     self.unregisterVolumeOverride();
@@ -178,6 +211,61 @@ ControllerES9018K2M.prototype.onVolumioReboot = function() {
     self.setMuteSync(true);
   }
   return libQ.resolve();
+};
+
+// ---------------------------------------------------------------------------
+// Startup Volume Logic (Hardware Mode Only)
+// ---------------------------------------------------------------------------
+
+ControllerES9018K2M.prototype.applyStartupVolume = function() {
+  var self = this;
+
+  // Get current system volume
+  var state = self.commandRouter.volumioGetState();
+  var systemVolume = (state && typeof state.volume === 'number') ? state.volume : 100;
+
+  self.logDebug('ES9018K2M: Startup volume logic - system=' + systemVolume +
+    ', startMuted=' + self.startMuted +
+    ', rememberLast=' + self.rememberLastVolume +
+    ', lastSaved=' + self.lastSavedVolume +
+    ', safeEnabled=' + self.safeStartupEnabled +
+    ', safeLevel=' + self.safeStartupVolume);
+
+  var targetVolume = systemVolume;
+  var shouldMute = false;
+
+  // Priority 1: Start muted
+  if (self.startMuted) {
+    shouldMute = true;
+    targetVolume = systemVolume;  // Keep system volume unchanged, just mute
+    self.logger.info('ES9018K2M: Starting muted');
+  }
+  // Priority 2: Remember last volume
+  else if (self.rememberLastVolume && self.lastSavedVolume >= 0) {
+    targetVolume = self.lastSavedVolume;
+    self.logger.info('ES9018K2M: Restoring last volume: ' + targetVolume);
+  }
+  // Priority 3: Safe startup (cap down only)
+  else if (self.safeStartupEnabled && systemVolume > self.safeStartupVolume) {
+    targetVolume = self.safeStartupVolume;
+    self.logger.info('ES9018K2M: Applying safe startup volume: ' + targetVolume +
+      ' (was ' + systemVolume + ')');
+  }
+
+  // Apply to DAC
+  self.currentVolume = targetVolume;
+  self.setVolumeImmediate(targetVolume);
+
+  if (shouldMute) {
+    self.setMuteSync(true);
+    self.currentMute = true;
+  }
+
+  // Push state to Volumio
+  self.commandRouter.volumioupdatevolume({
+    vol: targetVolume,
+    mute: shouldMute
+  });
 };
 
 // ---------------------------------------------------------------------------
@@ -193,14 +281,21 @@ ControllerES9018K2M.prototype.loadConfig = function() {
 
   self.i2cBus = self.config.get('i2cBus', 1);
   self.i2cAddress = self.config.get('i2cAddress', 0x48);
-  self.seekMuteMs = self.config.get('seekMuteMs', 150);
   self.debugLogging = self.config.get('debugLogging', false);
 
   // Volume mode settings
   self.volumeMode = self.config.get('volumeMode', 'software');
   self.cardNumber = self.config.get('cardNumber', -1);
 
-  // Graceful settings
+  // Startup volume settings (hardware mode only)
+  self.startMuted = self.config.get('startMuted', false);
+  self.safeStartupEnabled = self.config.get('safeStartupEnabled', false);
+  self.safeStartupVolume = self.config.get('safeStartupVolume', 25);
+  self.rememberLastVolume = self.config.get('rememberLastVolume', false);
+  self.lastSavedVolume = self.config.get('lastSavedVolume', -1);
+
+  // Mute & transitions settings
+  self.seekMuteMs = self.config.get('seekMuteMs', 150);
   self.gracefulSteps = self.config.get('gracefulSteps', 3);
   self.gracefulTransitions = self.config.get('gracefulTransitions', true);
   self.gracefulVolume = self.config.get('gracefulVolume', true);
@@ -248,14 +343,20 @@ ControllerES9018K2M.prototype.getUIConfig = function() {
   .then(function(uiconf) {
     // Section 0: Prerequisites (static text)
 
-    // Section 1: Device Status
+    // Section 1: Device Detection
     uiconf.sections[1].description = self.deviceFound
       ? self.getI18nString('DEVICE_FOUND')
       : self.getI18nString('DEVICE_NOT_FOUND');
 
-    // Volume mode select
+    uiconf.sections[1].content[0].value = self.i2cBus;
+    uiconf.sections[1].content[1].value = '0x' + self.i2cAddress.toString(16).toUpperCase();
+    uiconf.sections[1].content[2].value = self.config.get('debugLogging', false);
+
+    // Section 2: Volume Control
+    // [0] volumeMode, [1] cardNumber, [2] startMuted, [3] safeStartupEnabled,
+    // [4] safeStartupVolume, [5] rememberLastVolume
     var volumeModeValue = self.config.get('volumeMode', 'software');
-    uiconf.sections[1].content[0].value = {
+    uiconf.sections[2].content[0].value = {
       value: volumeModeValue,
       label: volumeModeValue === 'hardware'
         ? self.getI18nString('VOLUME_MODE_HARDWARE')
@@ -266,33 +367,41 @@ ControllerES9018K2M.prototype.getUIConfig = function() {
     var cardNum = self.config.get('cardNumber', -1);
     var detectedCard = self.getAutoDetectedCard();
     if (cardNum === -1) {
-      uiconf.sections[1].content[1].value = 'auto (' + detectedCard + ')';
+      uiconf.sections[2].content[1].value = 'auto (' + detectedCard + ')';
     } else {
-      uiconf.sections[1].content[1].value = String(cardNum);
+      uiconf.sections[2].content[1].value = String(cardNum);
     }
 
-    // Other device settings
-    uiconf.sections[1].content[2].value = self.config.get('seekMuteMs', 150);
-    uiconf.sections[1].content[3].value = self.config.get('gracefulSteps', 3);
-    uiconf.sections[1].content[4].value = self.config.get('gracefulTransitions', true);
-    uiconf.sections[1].content[5].value = self.config.get('gracefulVolume', true);
-    uiconf.sections[1].content[6].value = self.config.get('debugLogging', false);
+    // Start muted
+    uiconf.sections[2].content[2].value = self.config.get('startMuted', false);
 
-    // Section 2: I2C Settings
-    uiconf.sections[2].content[0].value = self.i2cBus;
-    uiconf.sections[2].content[1].value = '0x' + self.i2cAddress.toString(16).toUpperCase();
+    // Safe startup enabled
+    uiconf.sections[2].content[3].value = self.config.get('safeStartupEnabled', false);
 
-    // Section 3: Balance
-    uiconf.sections[3].content[0].value = self.config.get('balance', 0);
+    // Safe startup volume
+    uiconf.sections[2].content[4].value = self.config.get('safeStartupVolume', 25);
 
-    // Section 4: Digital Filters
-    uiconf.sections[4].content[0].value = self.getFirOption(self.config.get('fir', 1));
-    uiconf.sections[4].content[1].value = self.getIirOption(self.config.get('iir', 0));
-    uiconf.sections[4].content[2].value = self.getDeemphasisOption(self.config.get('deemphasis', 0x4A));
+    // Remember last volume
+    uiconf.sections[2].content[5].value = self.config.get('rememberLastVolume', false);
 
-    // Section 5: DPLL
-    uiconf.sections[5].content[0].value = self.getDpllOption(self.config.get('i2sDpll', 0x50));
-    uiconf.sections[5].content[1].value = self.getDpllOption(self.config.get('dsdDpll', 0x0A));
+    // Section 3: Mute & Transitions
+    // [0] seekMuteMs, [1] gracefulSteps, [2] gracefulTransitions, [3] gracefulVolume
+    uiconf.sections[3].content[0].value = self.config.get('seekMuteMs', 150);
+    uiconf.sections[3].content[1].value = self.config.get('gracefulSteps', 3);
+    uiconf.sections[3].content[2].value = self.config.get('gracefulTransitions', true);
+    uiconf.sections[3].content[3].value = self.config.get('gracefulVolume', true);
+
+    // Section 4: Channel Balance
+    uiconf.sections[4].content[0].value = self.config.get('balance', 0);
+
+    // Section 5: Digital Filters
+    uiconf.sections[5].content[0].value = self.getFirOption(self.config.get('fir', 1));
+    uiconf.sections[5].content[1].value = self.getIirOption(self.config.get('iir', 0));
+    uiconf.sections[5].content[2].value = self.getDeemphasisOption(self.config.get('deemphasis', 0x4A));
+
+    // Section 6: DPLL
+    uiconf.sections[6].content[0].value = self.getDpllOption(self.config.get('i2sDpll', 0x50));
+    uiconf.sections[6].content[1].value = self.getDpllOption(self.config.get('dsdDpll', 0x0A));
 
     defer.resolve(uiconf);
   })
@@ -1202,7 +1311,33 @@ ControllerES9018K2M.prototype.checkDeviceStatus = function() {
     });
 };
 
-ControllerES9018K2M.prototype.saveDeviceSettings = function(data) {
+ControllerES9018K2M.prototype.saveDeviceDetection = function(data) {
+  var self = this;
+
+  self.i2cBus = parseInt(data.i2cBus, 10) || 1;
+
+  var addr = data.i2cAddress;
+  if (typeof addr === 'string') {
+    addr = addr.toLowerCase().startsWith('0x')
+      ? parseInt(addr, 16)
+      : parseInt(addr, 10);
+  }
+  self.i2cAddress = addr || 0x48;
+
+  self.debugLogging = data.debugLogging || false;
+
+  self.config.set('i2cBus', self.i2cBus);
+  self.config.set('i2cAddress', self.i2cAddress);
+  self.config.set('debugLogging', self.debugLogging);
+
+  self.commandRouter.pushToastMessage('success',
+    self.getI18nString('PLUGIN_NAME'),
+    self.getI18nString('SETTINGS_SAVED'));
+
+  self.checkDeviceStatus();
+};
+
+ControllerES9018K2M.prototype.saveVolumeControl = function(data) {
   var self = this;
 
   // Volume mode - check if changed
@@ -1227,27 +1362,21 @@ ControllerES9018K2M.prototype.saveDeviceSettings = function(data) {
   }
   self.config.set('cardNumber', self.cardNumber);
 
-  // Seek mute duration
-  var seekMuteMs = parseInt(data.seekMuteMs, 10) || 150;
-  self.seekMuteMs = Math.max(0, Math.min(2000, seekMuteMs));
-  self.config.set('seekMuteMs', self.seekMuteMs);
+  // Start muted
+  self.startMuted = data.startMuted || false;
+  self.config.set('startMuted', self.startMuted);
 
-  // Graceful mute steps
-  var gracefulSteps = parseInt(data.gracefulSteps, 10) || 3;
-  self.gracefulSteps = Math.max(1, Math.min(5, gracefulSteps));
-  self.config.set('gracefulSteps', self.gracefulSteps);
+  // Safe startup settings
+  self.safeStartupEnabled = data.safeStartupEnabled || false;
+  self.config.set('safeStartupEnabled', self.safeStartupEnabled);
 
-  // Graceful transitions toggle
-  self.gracefulTransitions = data.gracefulTransitions !== false;
-  self.config.set('gracefulTransitions', self.gracefulTransitions);
+  var safeVol = parseInt(data.safeStartupVolume, 10);
+  self.safeStartupVolume = isNaN(safeVol) ? 25 : Math.max(0, Math.min(100, safeVol));
+  self.config.set('safeStartupVolume', self.safeStartupVolume);
 
-  // Graceful volume toggle
-  self.gracefulVolume = data.gracefulVolume !== false;
-  self.config.set('gracefulVolume', self.gracefulVolume);
-
-  // Debug logging
-  self.debugLogging = data.debugLogging || false;
-  self.config.set('debugLogging', self.debugLogging);
+  // Remember last volume
+  self.rememberLastVolume = data.rememberLastVolume || false;
+  self.config.set('rememberLastVolume', self.rememberLastVolume);
 
   // Handle volume mode change
   if (volumeModeChanged && self.deviceFound) {
@@ -1273,27 +1402,30 @@ ControllerES9018K2M.prototype.saveDeviceSettings = function(data) {
   }
 };
 
-ControllerES9018K2M.prototype.saveI2cSettings = function(data) {
+ControllerES9018K2M.prototype.saveMuteSettings = function(data) {
   var self = this;
 
-  self.i2cBus = parseInt(data.i2cBus, 10) || 1;
+  // Seek mute duration
+  var seekMuteMs = parseInt(data.seekMuteMs, 10) || 150;
+  self.seekMuteMs = Math.max(0, Math.min(2000, seekMuteMs));
+  self.config.set('seekMuteMs', self.seekMuteMs);
 
-  var addr = data.i2cAddress;
-  if (typeof addr === 'string') {
-    addr = addr.toLowerCase().startsWith('0x')
-      ? parseInt(addr, 16)
-      : parseInt(addr, 10);
-  }
-  self.i2cAddress = addr || 0x48;
+  // Graceful mute steps
+  var gracefulSteps = parseInt(data.gracefulSteps, 10) || 3;
+  self.gracefulSteps = Math.max(1, Math.min(5, gracefulSteps));
+  self.config.set('gracefulSteps', self.gracefulSteps);
 
-  self.config.set('i2cBus', self.i2cBus);
-  self.config.set('i2cAddress', self.i2cAddress);
+  // Graceful transitions toggle
+  self.gracefulTransitions = data.gracefulTransitions !== false;
+  self.config.set('gracefulTransitions', self.gracefulTransitions);
+
+  // Graceful volume toggle
+  self.gracefulVolume = data.gracefulVolume !== false;
+  self.config.set('gracefulVolume', self.gracefulVolume);
 
   self.commandRouter.pushToastMessage('success',
     self.getI18nString('PLUGIN_NAME'),
     self.getI18nString('SETTINGS_SAVED'));
-
-  self.checkDeviceStatus();
 };
 
 ControllerES9018K2M.prototype.saveBalanceSettings = function(data) {
@@ -1358,8 +1490,14 @@ ControllerES9018K2M.prototype.resetDevice = function() {
     return;
   }
 
+  // Reset all settings to defaults
   self.config.set('volumeMode', 'software');
   self.config.set('cardNumber', -1);
+  self.config.set('startMuted', false);
+  self.config.set('safeStartupEnabled', false);
+  self.config.set('safeStartupVolume', 25);
+  self.config.set('rememberLastVolume', false);
+  self.config.set('lastSavedVolume', -1);
   self.config.set('balance', 0);
   self.config.set('fir', 1);
   self.config.set('iir', 0);

@@ -69,6 +69,84 @@ self.commandRouter.addCallback('volumioupdatevolume', self.volumeCallback);
 - Requires Volumio to already have a volume slider visible
 - Volume callback receives `{vol, mute}` object
 
+## Startup Volume Logic (Hardware Mode)
+
+The plugin applies startup volume settings in priority order when starting in Hardware mode.
+
+### Priority Order
+
+```
+1. Start Muted (highest priority)
+   - Mute DAC immediately
+   - Keep system volume unchanged for slider position
+   
+2. Remember Last Volume
+   - Restore lastSavedVolume from config
+   - Overrides safe startup
+   
+3. Safe Startup Volume
+   - Only caps DOWN (never increases volume)
+   - Applied only if systemVolume > safeStartupVolume
+   
+4. System Default (lowest priority)
+   - Use current system volume as-is
+```
+
+### Implementation
+
+```javascript
+ControllerES9018K2M.prototype.applyStartupVolume = function() {
+  var self = this;
+  
+  var state = self.commandRouter.volumioGetState();
+  var systemVolume = (state && typeof state.volume === 'number') ? state.volume : 100;
+  
+  var targetVolume = systemVolume;
+  var shouldMute = false;
+
+  // Priority 1: Start muted
+  if (self.startMuted) {
+    shouldMute = true;
+    targetVolume = systemVolume;  // Keep slider position
+  }
+  // Priority 2: Remember last volume
+  else if (self.rememberLastVolume && self.lastSavedVolume >= 0) {
+    targetVolume = self.lastSavedVolume;
+  }
+  // Priority 3: Safe startup (cap down only)
+  else if (self.safeStartupEnabled && systemVolume > self.safeStartupVolume) {
+    targetVolume = self.safeStartupVolume;
+  }
+
+  // Apply to DAC
+  self.currentVolume = targetVolume;
+  self.setVolumeImmediate(targetVolume);
+
+  if (shouldMute) {
+    self.setMuteSync(true);
+    self.currentMute = true;
+  }
+
+  // Push state to Volumio
+  self.commandRouter.volumioupdatevolume({
+    vol: targetVolume,
+    mute: shouldMute
+  });
+};
+```
+
+### Volume Persistence
+
+Last volume is saved to config on plugin stop/shutdown/reboot:
+
+```javascript
+if (self.volumeMode === 'hardware' && self.rememberLastVolume) {
+  if (self.currentVolume !== self.lastSavedVolume) {
+    self.config.set('lastSavedVolume', self.currentVolume);
+  }
+}
+```
+
 ## Graceful Volume Ramping
 
 Volume transitions use linear interpolation to prevent audible artifacts.
@@ -265,6 +343,42 @@ var isES9018K2M = (status & 0x1C) === 0x10;
 | 60K | 10 | DSD option |
 | 70K | 11 | DSD option |
 | Bypass | - | Uses reg21 bit 2 |
+
+## UI Configuration
+
+### Dynamic Visibility with visibleIf
+
+The plugin uses Volumio's `visibleIf` for client-side field visibility:
+
+```json
+{
+  "id": "cardNumber",
+  "element": "input",
+  "visibleIf": {
+    "field": "volumeMode",
+    "value": "hardware"
+  }
+}
+```
+
+Fields show/hide dynamically without page refresh when the referenced field changes.
+
+### Cascading Visibility
+
+For nested visibility (e.g., safeStartupVolume visible only when hardware mode AND safeStartupEnabled):
+
+```json
+{
+  "id": "safeStartupEnabled",
+  "visibleIf": { "field": "volumeMode", "value": "hardware" }
+},
+{
+  "id": "safeStartupVolume",
+  "visibleIf": { "field": "safeStartupEnabled", "value": true }
+}
+```
+
+When volumeMode is "software", safeStartupEnabled is hidden, so user cannot enable it, therefore safeStartupVolume also stays hidden.
 
 ## Why No Custom Overlay?
 

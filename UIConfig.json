@@ -19,82 +19,44 @@
       ]
     },
     {
-      "id": "device_status",
+      "id": "device_detection",
       "element": "section",
-      "label": "TRANSLATE.DEVICE_STATUS",
-      "icon": "fa-check-circle",
+      "label": "TRANSLATE.DEVICE_DETECTION",
+      "icon": "fa-microchip",
       "description": "",
       "onSave": {
         "type": "controller",
         "endpoint": "system_hardware/es9018k2m",
-        "method": "saveDeviceSettings"
+        "method": "saveDeviceDetection"
       },
       "saveButton": {
         "label": "TRANSLATE.SAVE",
-        "data": ["volumeMode", "cardNumber", "seekMuteMs", "gracefulSteps", "gracefulTransitions", "gracefulVolume", "debugLogging"]
+        "data": ["i2cBus", "i2cAddress", "debugLogging"]
       },
       "content": [
         {
-          "id": "volumeMode",
-          "element": "select",
-          "label": "TRANSLATE.VOLUME_MODE",
-          "doc": "TRANSLATE.VOLUME_MODE_DOC",
-          "value": { "value": "software", "label": "Software (Callback)" },
-          "options": [
-            { "value": "software", "label": "TRANSLATE.VOLUME_MODE_SOFTWARE" },
-            { "value": "hardware", "label": "TRANSLATE.VOLUME_MODE_HARDWARE" }
+          "id": "i2cBus",
+          "element": "input",
+          "type": "number",
+          "label": "TRANSLATE.I2C_BUS",
+          "doc": "TRANSLATE.I2C_BUS_DOC",
+          "value": 1,
+          "attributes": [
+            { "placeholder": "1" },
+            { "min": 0 },
+            { "max": 10 }
           ]
         },
         {
-          "id": "cardNumber",
+          "id": "i2cAddress",
           "element": "input",
           "type": "text",
-          "label": "TRANSLATE.CARD_NUMBER",
-          "doc": "TRANSLATE.CARD_NUMBER_DOC",
-          "value": "auto",
+          "label": "TRANSLATE.I2C_ADDRESS",
+          "doc": "TRANSLATE.I2C_ADDRESS_DOC",
+          "value": "0x48",
           "attributes": [
-            { "placeholder": "auto" }
+            { "placeholder": "0x48" }
           ]
-        },
-        {
-          "id": "seekMuteMs",
-          "element": "input",
-          "type": "number",
-          "label": "TRANSLATE.SEEK_MUTE_MS",
-          "doc": "TRANSLATE.SEEK_MUTE_MS_DOC",
-          "value": 150,
-          "attributes": [
-            { "placeholder": "150" },
-            { "min": 0 },
-            { "max": 2000 }
-          ]
-        },
-        {
-          "id": "gracefulSteps",
-          "element": "input",
-          "type": "number",
-          "label": "TRANSLATE.GRACEFUL_STEPS",
-          "doc": "TRANSLATE.GRACEFUL_STEPS_DOC",
-          "value": 3,
-          "attributes": [
-            { "placeholder": "3" },
-            { "min": 1 },
-            { "max": 5 }
-          ]
-        },
-        {
-          "id": "gracefulTransitions",
-          "element": "switch",
-          "label": "TRANSLATE.GRACEFUL_TRANSITIONS",
-          "doc": "TRANSLATE.GRACEFUL_TRANSITIONS_DOC",
-          "value": true
-        },
-        {
-          "id": "gracefulVolume",
-          "element": "switch",
-          "label": "TRANSLATE.GRACEFUL_VOLUME",
-          "doc": "TRANSLATE.GRACEFUL_VOLUME_DOC",
-          "value": true
         },
         {
           "id": "debugLogging",
@@ -139,43 +101,152 @@
       ]
     },
     {
-      "id": "i2c_settings",
+      "id": "volume_control",
       "element": "section",
-      "label": "TRANSLATE.I2C_SETTINGS",
-      "icon": "fa-cog",
+      "label": "TRANSLATE.VOLUME_CONTROL",
+      "icon": "fa-sliders",
       "onSave": {
         "type": "controller",
         "endpoint": "system_hardware/es9018k2m",
-        "method": "saveI2cSettings"
+        "method": "saveVolumeControl"
       },
       "saveButton": {
         "label": "TRANSLATE.SAVE",
-        "data": ["i2cBus", "i2cAddress"]
+        "data": ["volumeMode", "cardNumber", "startMuted", "safeStartupEnabled", "safeStartupVolume", "rememberLastVolume"]
       },
       "content": [
         {
-          "id": "i2cBus",
-          "element": "input",
-          "type": "number",
-          "label": "TRANSLATE.I2C_BUS",
-          "doc": "TRANSLATE.I2C_BUS_DOC",
-          "value": 1,
-          "attributes": [
-            { "placeholder": "1" },
-            { "min": 0 },
-            { "max": 10 }
+          "id": "volumeMode",
+          "element": "select",
+          "label": "TRANSLATE.VOLUME_MODE",
+          "doc": "TRANSLATE.VOLUME_MODE_DOC",
+          "value": { "value": "software", "label": "Software (Callback)" },
+          "options": [
+            { "value": "software", "label": "TRANSLATE.VOLUME_MODE_SOFTWARE" },
+            { "value": "hardware", "label": "TRANSLATE.VOLUME_MODE_HARDWARE" }
           ]
         },
         {
-          "id": "i2cAddress",
+          "id": "cardNumber",
           "element": "input",
           "type": "text",
-          "label": "TRANSLATE.I2C_ADDRESS",
-          "doc": "TRANSLATE.I2C_ADDRESS_DOC",
-          "value": "0x48",
+          "label": "TRANSLATE.CARD_NUMBER",
+          "doc": "TRANSLATE.CARD_NUMBER_DOC",
+          "value": "auto",
+          "visibleIf": {
+            "field": "volumeMode",
+            "value": "hardware"
+          },
           "attributes": [
-            { "placeholder": "0x48" }
+            { "placeholder": "auto" }
           ]
+        },
+        {
+          "id": "startMuted",
+          "element": "switch",
+          "label": "TRANSLATE.START_MUTED",
+          "doc": "TRANSLATE.START_MUTED_DOC",
+          "value": false,
+          "visibleIf": {
+            "field": "volumeMode",
+            "value": "hardware"
+          }
+        },
+        {
+          "id": "safeStartupEnabled",
+          "element": "switch",
+          "label": "TRANSLATE.SAFE_STARTUP_ENABLED",
+          "doc": "TRANSLATE.SAFE_STARTUP_ENABLED_DOC",
+          "value": false,
+          "visibleIf": {
+            "field": "volumeMode",
+            "value": "hardware"
+          }
+        },
+        {
+          "id": "safeStartupVolume",
+          "element": "input",
+          "type": "number",
+          "label": "TRANSLATE.SAFE_STARTUP_VOLUME",
+          "doc": "TRANSLATE.SAFE_STARTUP_VOLUME_DOC",
+          "value": 25,
+          "visibleIf": {
+            "field": "safeStartupEnabled",
+            "value": true
+          },
+          "attributes": [
+            { "placeholder": "25" },
+            { "min": 0 },
+            { "max": 100 }
+          ]
+        },
+        {
+          "id": "rememberLastVolume",
+          "element": "switch",
+          "label": "TRANSLATE.REMEMBER_LAST_VOLUME",
+          "doc": "TRANSLATE.REMEMBER_LAST_VOLUME_DOC",
+          "value": false,
+          "visibleIf": {
+            "field": "volumeMode",
+            "value": "hardware"
+          }
+        }
+      ]
+    },
+    {
+      "id": "mute_transitions",
+      "element": "section",
+      "label": "TRANSLATE.MUTE_TRANSITIONS",
+      "icon": "fa-volume-off",
+      "onSave": {
+        "type": "controller",
+        "endpoint": "system_hardware/es9018k2m",
+        "method": "saveMuteSettings"
+      },
+      "saveButton": {
+        "label": "TRANSLATE.SAVE",
+        "data": ["seekMuteMs", "gracefulSteps", "gracefulTransitions", "gracefulVolume"]
+      },
+      "content": [
+        {
+          "id": "seekMuteMs",
+          "element": "input",
+          "type": "number",
+          "label": "TRANSLATE.SEEK_MUTE_MS",
+          "doc": "TRANSLATE.SEEK_MUTE_MS_DOC",
+          "value": 150,
+          "attributes": [
+            { "placeholder": "150" },
+            { "min": 0 },
+            { "max": 2000 }
+          ]
+        },
+        {
+          "id": "gracefulSteps",
+          "element": "input",
+          "type": "number",
+          "label": "TRANSLATE.GRACEFUL_STEPS",
+          "doc": "TRANSLATE.GRACEFUL_STEPS_DOC",
+          "value": 3,
+          "attributes": [
+            { "placeholder": "3" },
+            { "min": 1 },
+            { "max": 5 }
+          ]
+        },
+        {
+          "id": "gracefulTransitions",
+          "element": "switch",
+          "label": "TRANSLATE.GRACEFUL_TRANSITIONS",
+          "doc": "TRANSLATE.GRACEFUL_TRANSITIONS_DOC",
+          "value": true
+        },
+        {
+          "id": "gracefulVolume",
+          "element": "switch",
+          "label": "TRANSLATE.GRACEFUL_VOLUME",
+          "doc": "TRANSLATE.GRACEFUL_VOLUME_DOC",
+          "value": true
         }
       ]
     },
@@ -232,7 +303,7 @@
       "id": "filter_settings",
       "element": "section",
       "label": "TRANSLATE.DIGITAL_FILTERS",
-      "icon": "fa-sliders",
+      "icon": "fa-filter",
       "onSave": {
         "type": "controller",
         "endpoint": "system_hardware/es9018k2m",
