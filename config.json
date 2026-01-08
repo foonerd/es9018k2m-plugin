@@ -9,7 +9,7 @@
   },
   "volumeMode": {
     "type": "string",
-    "value": "software"
+    "value": "hardware"
   },
   "cardNumber": {
     "type": "number",

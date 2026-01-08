@@ -1,6 +1,6 @@
 {
   "name": "es9018k2m",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "description": "Hardware control for ES9018K2M DAC via I2C with automatic volume synchronization",
   "main": "index.js",
   "scripts": {
@@ -20,7 +20,7 @@
     "os": ["bookworm"],
     "has_configuration": true,
     "details": "Hardware control for ES9018K2M DAC via I2C. Software or Hardware volume modes (Hardware enables volume slider with Mixer Type: None), safe startup volume, start muted option, remember last volume, graceful volume ramping, digital filters (FIR/IIR), DPLL jitter reduction, and balance control. Works with any ES9018K2M-based DAC HAT using the standard i2s-dac overlay.",
-    "changelog": "v1.2.3 - Fixed startup volume timing with VOLUMIO_SYSTEM_STATUS polling, added config.save() for reliable volume persistence, startMuted now respects rememberLastVolume for slider position, dynamic UI with visibleIf"
+    "changelog": "v1.2.4 - Hardware volume mode as default, updated prerequisites to include Mixer Type: None setting"
   },
   "engines": {
     "node": ">=20",
