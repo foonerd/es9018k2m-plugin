@@ -89,13 +89,27 @@ When using Hardware mode with amp that powers on at full volume:
 - **FIR Filter**: Try "Minimum Phase" for less pre-ringing
 - **DPLL**: Higher values = more jitter reduction (start with 5 for I2S)
 
+### Use with External Volume Control
+
+For setups with Allo Relay Attenuator, external pre-amp, or receiver:
+
+1. Open plugin settings
+2. Set **Volume Control Mode** to "Pass-through (External)"
+3. Save settings
+
+In Pass-through mode:
+- External device handles all volume control
+- Plugin manages DAC features only (filters, DPLL, balance)
+- Seek mute and graceful transitions still work
+- No volume slider conflicts between plugins
+
 ## Configuration Reference
 
 ### Volume Control (Hardware Mode)
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| Volume Control Mode | Software | Hardware mode enables slider with Mixer Type: None |
+| Volume Control Mode | Hardware | Hardware: plugin controls volume. Software: Volumio callbacks. Pass-through: external device controls volume |
 | ALSA Card Number | auto | Manual override for multi-card setups |
 | Start Muted | Off | Start DAC muted on plugin load |
 | Safe Startup Volume | Off | Cap volume on startup if exceeds safe level |
@@ -136,6 +150,11 @@ When using Hardware mode with amp that powers on at full volume:
 For architecture, register configuration, and implementation details, see [TECHNICAL.md](TECHNICAL.md).
 
 ## Changelog
+
+### v1.2.5
+- Added Pass-through volume mode for external attenuators/pre-amps
+- Extended prerequisites documentation for different configurations
+- Standalone DAC, Allo Relay Attenuator, external pre-amp use cases
 
 ### v1.2.4
 - Hardware volume mode as default (recommended for most users)

@@ -2,8 +2,8 @@
   "PLUGIN_NAME": "ES9018K2M DAC Control",
 
   "PREREQUISITES": "Setup Requirements",
-  "PREREQUISITES_DESC": "This plugin requires specific Volumio settings to be configured.",
-  "PREREQ_NOTICE": "Before using this plugin: Go to Volumio Settings > Playback Options. Enable I2S DAC and select 'R-PI DAC' as DAC Model. Set Mixer Type to 'None'. Save and Reboot. The plugin will not detect your DAC until this is configured.",
+  "PREREQUISITES_DESC": "This plugin supports several DAC configurations.",
+  "PREREQ_NOTICE": "Standalone DAC: Set DAC Model to R-PI DAC, Mixer Type to None, use Hardware mode. With Allo Relay Attenuator or external pre-amp: Use Pass-through mode, external device handles volume. Plugin manages DAC features (filters, DPLL, balance) in all modes.",
 
   "DEVICE_DETECTION": "Device Detection",
   "CHECK_DEVICE": "Check Device",
@@ -22,11 +22,13 @@
 
   "VOLUME_CONTROL": "Volume Control",
   "VOLUME_MODE": "Volume Control Mode",
-  "VOLUME_MODE_DOC": "Hardware: Registers as hardware mixer, enables volume slider when Mixer Type is None (recommended). Software: Uses Volumio callbacks, requires existing mixer.",
+  "VOLUME_MODE_DOC": "Hardware: Plugin controls volume via DAC registers (recommended for standalone). Software: Volumio controls volume via callbacks. Pass-through: External device controls volume (Allo Relay Attenuator, pre-amp, receiver), plugin manages DAC features only.",
   "VOLUME_MODE_SOFTWARE": "Software (Callback)",
   "VOLUME_MODE_HARDWARE": "Hardware (Override)",
+  "VOLUME_MODE_PASSTHROUGH": "Pass-through (External)",
   "VOLUME_MODE_CHANGED_HW": "Switched to Hardware volume mode. Volume slider should now appear.",
   "VOLUME_MODE_CHANGED_SW": "Switched to Software volume mode.",
+  "VOLUME_MODE_CHANGED_PT": "Switched to Pass-through mode. External device controls volume.",
 
   "CARD_NUMBER": "ALSA Card Number",
   "CARD_NUMBER_DOC": "ALSA card number for hardware mode. Enter 'auto' to detect from Volumio output device, or specify a number (0, 1, etc.) to override.",

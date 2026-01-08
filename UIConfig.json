@@ -123,7 +123,8 @@
           "value": { "value": "hardware", "label": "Hardware (Override)" },
           "options": [
             { "value": "hardware", "label": "TRANSLATE.VOLUME_MODE_HARDWARE" },
-            { "value": "software", "label": "TRANSLATE.VOLUME_MODE_SOFTWARE" }
+            { "value": "software", "label": "TRANSLATE.VOLUME_MODE_SOFTWARE" },
+            { "value": "passthrough", "label": "TRANSLATE.VOLUME_MODE_PASSTHROUGH" }
           ]
         },
         {

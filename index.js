@@ -23,7 +23,7 @@ function ControllerES9018K2M(context) {
   // Device state
   self.deviceFound = false;
 
-  // Volume mode: 'hardware' or 'software'
+  // Volume mode: 'hardware', 'software', or 'passthrough'
   self.volumeMode = 'hardware';
   self.cardNumber = -1;  // -1 = auto-detect
   self.volumeOverrideRegistered = false;
@@ -115,8 +115,12 @@ ControllerES9018K2M.prototype.onStart = function() {
         if (self.volumeMode === 'hardware') {
           self.registerVolumeOverride();
           self.applyStartupVolume();
-        } else {
+        } else if (self.volumeMode === 'software') {
           self.startVolumeSync();
+        } else {
+          // passthrough - external device handles volume
+          // DAC features, seek mute, and graceful transitions still work
+          self.logger.info('ES9018K2M: Pass-through mode - external device controls volume');
         }
 
         self.startSocketConnection();
@@ -415,12 +419,18 @@ ControllerES9018K2M.prototype.getUIConfig = function() {
     // Section 2: Volume Control
     // [0] volumeMode, [1] cardNumber, [2] startMuted, [3] safeStartupEnabled,
     // [4] safeStartupVolume, [5] rememberLastVolume
-    var volumeModeValue = self.config.get('volumeMode', 'software');
+    var volumeModeValue = self.config.get('volumeMode', 'hardware');
+    var volumeModeLabel;
+    if (volumeModeValue === 'hardware') {
+      volumeModeLabel = self.getI18nString('VOLUME_MODE_HARDWARE');
+    } else if (volumeModeValue === 'passthrough') {
+      volumeModeLabel = self.getI18nString('VOLUME_MODE_PASSTHROUGH');
+    } else {
+      volumeModeLabel = self.getI18nString('VOLUME_MODE_SOFTWARE');
+    }
     uiconf.sections[2].content[0].value = {
       value: volumeModeValue,
-      label: volumeModeValue === 'hardware'
-        ? self.getI18nString('VOLUME_MODE_HARDWARE')
-        : self.getI18nString('VOLUME_MODE_SOFTWARE')
+      label: volumeModeLabel
     };
 
     // Card number - show auto-detected value or manual override
@@ -1440,20 +1450,28 @@ ControllerES9018K2M.prototype.saveVolumeControl = function(data) {
 
   // Handle volume mode change
   if (volumeModeChanged && self.deviceFound) {
+    // First, stop current mode
+    if (self.volumeOverrideRegistered) {
+      self.unregisterVolumeOverride();
+    }
+    self.stopVolumeSync();
+
+    // Then start new mode
     if (self.volumeMode === 'hardware') {
-      // Switch from software to hardware
-      self.stopVolumeSync();
       self.registerVolumeOverride();
       self.commandRouter.pushToastMessage('info',
         self.getI18nString('PLUGIN_NAME'),
         self.getI18nString('VOLUME_MODE_CHANGED_HW'));
-    } else {
-      // Switch from hardware to software
-      self.unregisterVolumeOverride();
+    } else if (self.volumeMode === 'software') {
       self.startVolumeSync();
       self.commandRouter.pushToastMessage('info',
         self.getI18nString('PLUGIN_NAME'),
         self.getI18nString('VOLUME_MODE_CHANGED_SW'));
+    } else {
+      // passthrough - no volume control
+      self.commandRouter.pushToastMessage('info',
+        self.getI18nString('PLUGIN_NAME'),
+        self.getI18nString('VOLUME_MODE_CHANGED_PT'));
     }
   } else {
     self.commandRouter.pushToastMessage('success',

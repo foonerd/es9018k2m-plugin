@@ -1,6 +1,6 @@
 {
   "name": "es9018k2m",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "description": "Hardware control for ES9018K2M DAC via I2C with automatic volume synchronization",
   "main": "index.js",
   "scripts": {
@@ -19,8 +19,8 @@
     "architectures": ["armhf"],
     "os": ["bookworm"],
     "has_configuration": true,
-    "details": "Hardware control for ES9018K2M DAC via I2C. Software or Hardware volume modes (Hardware enables volume slider with Mixer Type: None), safe startup volume, start muted option, remember last volume, graceful volume ramping, digital filters (FIR/IIR), DPLL jitter reduction, and balance control. Works with any ES9018K2M-based DAC HAT using the standard i2s-dac overlay.",
-    "changelog": "v1.2.4 - Hardware volume mode as default, updated prerequisites to include Mixer Type: None setting"
+    "details": "Hardware control for ES9018K2M DAC via I2C. Hardware, Software, or Pass-through volume modes. Hardware enables volume slider with Mixer Type: None. Pass-through for use with Allo Relay Attenuator or external pre-amp. Safe startup volume, start muted, remember last volume, graceful volume ramping, digital filters (FIR/IIR), DPLL jitter reduction, and balance control.",
+    "changelog": "v1.2.5 - Added Pass-through volume mode for external attenuators/pre-amps, extended prerequisites documentation"
   },
   "engines": {
     "node": ">=20",
