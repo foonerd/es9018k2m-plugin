@@ -23,8 +23,8 @@ function ControllerES9018K2M(context) {
   // Device state
   self.deviceFound = false;
 
-  // Volume mode: 'software' or 'hardware'
-  self.volumeMode = 'software';
+  // Volume mode: 'hardware' or 'software'
+  self.volumeMode = 'hardware';
   self.cardNumber = -1;  // -1 = auto-detect
   self.volumeOverrideRegistered = false;
 
@@ -344,7 +344,7 @@ ControllerES9018K2M.prototype.loadConfig = function() {
   self.debugLogging = self.config.get('debugLogging', false);
 
   // Volume mode settings
-  self.volumeMode = self.config.get('volumeMode', 'software');
+  self.volumeMode = self.config.get('volumeMode', 'hardware');
   self.cardNumber = self.config.get('cardNumber', -1);
 
   // Startup volume settings (hardware mode only)
@@ -1401,7 +1401,7 @@ ControllerES9018K2M.prototype.saveVolumeControl = function(data) {
   var self = this;
 
   // Volume mode - check if changed
-  var newVolumeMode = (data.volumeMode && data.volumeMode.value) || 'software';
+  var newVolumeMode = (data.volumeMode && data.volumeMode.value) || 'hardware';
   var volumeModeChanged = (newVolumeMode !== self.volumeMode);
 
   self.volumeMode = newVolumeMode;

@@ -2,15 +2,15 @@
   "PLUGIN_NAME": "ES9018K2M DAC Control",
 
   "PREREQUISITES": "Setup Requirements",
-  "PREREQUISITES_DESC": "This plugin requires the i2s-dac overlay to be configured in Volumio.",
-  "PREREQ_NOTICE": "Before using this plugin: Go to Volumio Settings > Playback Options > I2S DAC and select 'i2s-dac' (or 'Generic I2S DAC'), then Save and Reboot. The plugin will not detect your DAC until this is configured.",
+  "PREREQUISITES_DESC": "This plugin requires specific Volumio settings to be configured.",
+  "PREREQ_NOTICE": "Before using this plugin: Go to Volumio Settings > Playback Options. Enable I2S DAC and select 'R-PI DAC' as DAC Model. Set Mixer Type to 'None'. Save and Reboot. The plugin will not detect your DAC until this is configured.",
 
   "DEVICE_DETECTION": "Device Detection",
   "CHECK_DEVICE": "Check Device",
   "RESET_DEVICE": "Reset to Defaults",
   "RESET_DEVICE_DOC": "Reset all DAC settings to factory defaults",
   "DEVICE_FOUND": "ES9018K2M detected and ready",
-  "DEVICE_NOT_FOUND": "ES9018K2M not detected. Check I2C connection and address. Ensure i2s-dac is selected in Volumio Playback Options and system has been rebooted.",
+  "DEVICE_NOT_FOUND": "ES9018K2M not detected. Check I2C connection and address. Ensure R-PI DAC is selected in Volumio Playback Options and system has been rebooted.",
   "DEVICE_RESET": "Device reset to factory defaults",
 
   "I2C_BUS": "I2C Bus",
@@ -22,7 +22,7 @@
 
   "VOLUME_CONTROL": "Volume Control",
   "VOLUME_MODE": "Volume Control Mode",
-  "VOLUME_MODE_DOC": "Software: Uses Volumio callbacks. Hardware: Registers as hardware mixer, enables volume slider when Mixer Type is None.",
+  "VOLUME_MODE_DOC": "Hardware: Registers as hardware mixer, enables volume slider when Mixer Type is None (recommended). Software: Uses Volumio callbacks, requires existing mixer.",
   "VOLUME_MODE_SOFTWARE": "Software (Callback)",
   "VOLUME_MODE_HARDWARE": "Hardware (Override)",
   "VOLUME_MODE_CHANGED_HW": "Switched to Hardware volume mode. Volume slider should now appear.",

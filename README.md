@@ -23,11 +23,12 @@ Hardware control plugin for ES9018K2M-based DAC HATs on Raspberry Pi running Vol
 
 ## Quick Start
 
-### 1. Configure Volumio DAC Output
+### 1. Configure Volumio Audio Output
 
 1. Go to **Volumio Settings > Playback Options**
-2. Under **I2S DAC**, select **i2s-dac** (or "Generic I2S DAC")
-3. Click **Save** and **Reboot**
+2. Enable **I2S DAC** and select **R-PI DAC** as DAC Model
+3. Under **Volume Options**, set **Mixer Type** to **None**
+4. Click **Save** and **Reboot**
 
 ### 2. Install the Plugin
 
@@ -123,7 +124,7 @@ When using Hardware mode with amp that powers on at full volume:
 | Problem | Solution |
 |---------|----------|
 | No volume slider | Set Volume Mode to "Hardware (Override)" |
-| Device not detected | Check I2C address, verify i2s-dac selected in Playback Options |
+| Device not detected | Check I2C address, verify R-PI DAC selected in Playback Options |
 | Pops during seek | Increase Seek Mute Duration |
 | Pops on play/pause | Enable Graceful Play/Pause/Stop, increase steps |
 | Pops on volume change | Enable Graceful Volume Changes |
@@ -135,6 +136,10 @@ When using Hardware mode with amp that powers on at full volume:
 For architecture, register configuration, and implementation details, see [TECHNICAL.md](TECHNICAL.md).
 
 ## Changelog
+
+### v1.2.4
+- Hardware volume mode as default (recommended for most users)
+- Updated prerequisites to include Mixer Type: None setting
 
 ### v1.2.3
 - Fixed startup volume timing with VOLUMIO_SYSTEM_STATUS polling

@@ -120,10 +120,10 @@
           "element": "select",
           "label": "TRANSLATE.VOLUME_MODE",
           "doc": "TRANSLATE.VOLUME_MODE_DOC",
-          "value": { "value": "software", "label": "Software (Callback)" },
+          "value": { "value": "hardware", "label": "Hardware (Override)" },
           "options": [
-            { "value": "software", "label": "TRANSLATE.VOLUME_MODE_SOFTWARE" },
-            { "value": "hardware", "label": "TRANSLATE.VOLUME_MODE_HARDWARE" }
+            { "value": "hardware", "label": "TRANSLATE.VOLUME_MODE_HARDWARE" },
+            { "value": "software", "label": "TRANSLATE.VOLUME_MODE_SOFTWARE" }
           ]
         },
         {
