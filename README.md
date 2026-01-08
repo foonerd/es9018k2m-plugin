@@ -50,8 +50,9 @@ volumio plugin install
 If you don't see a volume slider:
 
 1. Open plugin settings
-2. Set **Volume Control Mode** to "Hardware (Override)"
-3. Save - slider should appear immediately
+2. Ensure **Use External Volume Device** is Off
+3. Set **Volume Mode** to "Hardware (Override)"
+4. Save - slider should appear immediately
 
 ### Protect Speakers on Startup
 
@@ -89,13 +90,28 @@ When using Hardware mode with amp that powers on at full volume:
 - **FIR Filter**: Try "Minimum Phase" for less pre-ringing
 - **DPLL**: Higher values = more jitter reduction (start with 5 for I2S)
 
+### Use with External Volume Control
+
+For setups with Allo Relay Attenuator, external pre-amp, or receiver:
+
+1. Open plugin settings
+2. Enable **Use External Volume Device** toggle
+3. Save settings
+
+With External Volume Device enabled:
+- External device handles all volume control
+- Plugin manages DAC features only (filters, DPLL, balance)
+- Seek mute and graceful transitions still work
+- No volume slider conflicts between plugins
+
 ## Configuration Reference
 
 ### Volume Control (Hardware Mode)
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| Volume Control Mode | Software | Hardware mode enables slider with Mixer Type: None |
+| Use External Volume Device | Off | Enable if external device controls volume (Allo Relay Attenuator, pre-amp, receiver) |
+| Volume Mode | Hardware | Hardware: plugin controls volume (recommended). Software: Volumio mixer controls volume |
 | ALSA Card Number | auto | Manual override for multi-card setups |
 | Start Muted | Off | Start DAC muted on plugin load |
 | Safe Startup Volume | Off | Cap volume on startup if exceeds safe level |
@@ -123,7 +139,7 @@ When using Hardware mode with amp that powers on at full volume:
 
 | Problem | Solution |
 |---------|----------|
-| No volume slider | Set Volume Mode to "Hardware (Override)" |
+| No volume slider | Disable External Volume Device, set Volume Mode to "Hardware (Override)" |
 | Device not detected | Check I2C address, verify R-PI DAC selected in Playback Options |
 | Pops during seek | Increase Seek Mute Duration |
 | Pops on play/pause | Enable Graceful Play/Pause/Stop, increase steps |
@@ -136,6 +152,13 @@ When using Hardware mode with amp that powers on at full volume:
 For architecture, register configuration, and implementation details, see [TECHNICAL.md](TECHNICAL.md).
 
 ## Changelog
+
+### v1.2.5
+- External Volume Device toggle for Allo Relay Attenuator, pre-amps, receivers
+- UI restructure with dynamic field visibility (no page refresh needed)
+- Fixed volume persistence - startup no longer corrupts saved volume
+- Volume Mode simplified to Hardware/Software (external moved to toggle)
+- UI refresh after save via broadcastMessage
 
 ### v1.2.4
 - Hardware volume mode as default (recommended for most users)

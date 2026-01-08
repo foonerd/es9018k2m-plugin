@@ -23,7 +23,10 @@ function ControllerES9018K2M(context) {
   // Device state
   self.deviceFound = false;
 
-  // Volume mode: 'hardware' or 'software'
+  // External volume device (Allo Relay Attenuator, pre-amp, receiver)
+  self.externalVolume = false;
+
+  // Volume mode: 'hardware' or 'software' (only used when externalVolume = false)
   self.volumeMode = 'hardware';
   self.cardNumber = -1;  // -1 = auto-detect
   self.volumeOverrideRegistered = false;
@@ -34,6 +37,7 @@ function ControllerES9018K2M(context) {
   self.safeStartupVolume = 25;
   self.rememberLastVolume = false;
   self.lastSavedVolume = -1;  // -1 = not saved
+  self.startupVolumeApplied = false;  // Flag to prevent saving during startup
 
   // Current volume/mute state for hardware mode
   self.currentVolume = 100;
@@ -112,15 +116,23 @@ ControllerES9018K2M.prototype.onStart = function() {
         self.installSeekIntercept();
 
         // Start appropriate volume control mode
-        if (self.volumeMode === 'hardware') {
+        if (self.externalVolume) {
+          // External device handles volume (Allo Relay Attenuator, pre-amp, receiver)
+          // DAC features, seek mute, and graceful transitions still work
+          self.startupVolumeApplied = true;  // No startup volume logic needed
+          self.logger.info('ES9018K2M: External volume device enabled - plugin manages DAC features only');
+        } else if (self.volumeMode === 'hardware') {
           self.registerVolumeOverride();
           self.applyStartupVolume();
         } else {
+          // software mode - Volumio handles startup volume
+          self.startupVolumeApplied = true;
           self.startVolumeSync();
         }
 
         self.startSocketConnection();
-        self.logger.info('ES9018K2M: Device initialized, volume mode: ' + self.volumeMode);
+        var modeDesc = self.externalVolume ? 'external' : self.volumeMode;
+        self.logger.info('ES9018K2M: Device initialized, volume mode: ' + modeDesc);
       } else {
         self.logger.warn('ES9018K2M: Device not found at address 0x' +
           self.i2cAddress.toString(16));
@@ -230,6 +242,7 @@ ControllerES9018K2M.prototype.applyStartupVolume = function() {
   var hasStartupFeatures = self.startMuted || self.rememberLastVolume || self.safeStartupEnabled;
 
   if (!hasStartupFeatures) {
+    self.startupVolumeApplied = true;  // Allow volume saves immediately
     self.logger.info('ES9018K2M: No startup volume features enabled');
     return;
   }
@@ -297,7 +310,7 @@ ControllerES9018K2M.prototype.doApplyStartupVolume = function() {
       self.logger.info('ES9018K2M: Starting muted at system volume: ' + targetVolume);
     }
   }
-  // Priority 2: Remember last volume
+  // Priority 2: Remember last volume (only if we have a saved value)
   else if (self.rememberLastVolume && self.lastSavedVolume >= 0) {
     targetVolume = self.lastSavedVolume;
     self.logger.info('ES9018K2M: Restoring last volume: ' + targetVolume);
@@ -324,6 +337,9 @@ ControllerES9018K2M.prototype.doApplyStartupVolume = function() {
     mute: shouldMute
   });
 
+  // Mark startup complete - now safe to save volume changes
+  self.startupVolumeApplied = true;
+
   self.logger.info('ES9018K2M: Startup volume applied: ' + targetVolume +
     (shouldMute ? ' (muted)' : ''));
 };
@@ -343,8 +359,21 @@ ControllerES9018K2M.prototype.loadConfig = function() {
   self.i2cAddress = self.config.get('i2cAddress', 0x48);
   self.debugLogging = self.config.get('debugLogging', false);
 
+  // External volume device
+  self.externalVolume = self.config.get('externalVolume', false);
+
   // Volume mode settings
   self.volumeMode = self.config.get('volumeMode', 'hardware');
+
+  // Migration: convert old 'passthrough' volumeMode to new externalVolume
+  if (self.volumeMode === 'passthrough') {
+    self.externalVolume = true;
+    self.volumeMode = 'hardware';
+    self.config.set('externalVolume', true);
+    self.config.set('volumeMode', 'hardware');
+    self.logger.info('ES9018K2M: Migrated passthrough mode to externalVolume');
+  }
+
   self.cardNumber = self.config.get('cardNumber', -1);
 
   // Startup volume settings (hardware mode only)
@@ -412,37 +441,48 @@ ControllerES9018K2M.prototype.getUIConfig = function() {
     uiconf.sections[1].content[1].value = '0x' + self.i2cAddress.toString(16).toUpperCase();
     uiconf.sections[1].content[2].value = self.config.get('debugLogging', false);
 
-    // Section 2: Volume Control
-    // [0] volumeMode, [1] cardNumber, [2] startMuted, [3] safeStartupEnabled,
-    // [4] safeStartupVolume, [5] rememberLastVolume
-    var volumeModeValue = self.config.get('volumeMode', 'software');
-    uiconf.sections[2].content[0].value = {
+    // Section 2: Volume Control (merged)
+    // [0] externalVolume, [1] volumeMode, [2] cardNumber, [3] startMuted,
+    // [4] safeStartupEnabled, [5] safeStartupVolume, [6] rememberLastVolume
+    uiconf.sections[2].content[0].value = self.config.get('externalVolume', false);
+
+    var volumeModeValue = self.config.get('volumeMode', 'hardware');
+    var volumeModeLabel = (volumeModeValue === 'hardware')
+      ? self.getI18nString('VOLUME_MODE_HARDWARE')
+      : self.getI18nString('VOLUME_MODE_SOFTWARE');
+    uiconf.sections[2].content[1].value = {
       value: volumeModeValue,
-      label: volumeModeValue === 'hardware'
-        ? self.getI18nString('VOLUME_MODE_HARDWARE')
-        : self.getI18nString('VOLUME_MODE_SOFTWARE')
+      label: volumeModeLabel
     };
+
+    // Hardware-only fields - hide when software mode (in addition to visibleIf for externalVolume)
+    var hideHardwareFields = (volumeModeValue !== 'hardware');
 
     // Card number - show auto-detected value or manual override
     var cardNum = self.config.get('cardNumber', -1);
     var detectedCard = self.getAutoDetectedCard();
     if (cardNum === -1) {
-      uiconf.sections[2].content[1].value = 'auto (' + detectedCard + ')';
+      uiconf.sections[2].content[2].value = 'auto (' + detectedCard + ')';
     } else {
-      uiconf.sections[2].content[1].value = String(cardNum);
+      uiconf.sections[2].content[2].value = String(cardNum);
     }
+    uiconf.sections[2].content[2].hidden = hideHardwareFields;
 
     // Start muted
-    uiconf.sections[2].content[2].value = self.config.get('startMuted', false);
+    uiconf.sections[2].content[3].value = self.config.get('startMuted', false);
+    uiconf.sections[2].content[3].hidden = hideHardwareFields;
 
     // Safe startup enabled
-    uiconf.sections[2].content[3].value = self.config.get('safeStartupEnabled', false);
+    uiconf.sections[2].content[4].value = self.config.get('safeStartupEnabled', false);
+    uiconf.sections[2].content[4].hidden = hideHardwareFields;
 
     // Safe startup volume
-    uiconf.sections[2].content[4].value = self.config.get('safeStartupVolume', 25);
+    uiconf.sections[2].content[5].value = self.config.get('safeStartupVolume', 25);
+    uiconf.sections[2].content[5].hidden = hideHardwareFields;
 
     // Remember last volume
-    uiconf.sections[2].content[5].value = self.config.get('rememberLastVolume', false);
+    uiconf.sections[2].content[6].value = self.config.get('rememberLastVolume', false);
+    uiconf.sections[2].content[6].hidden = hideHardwareFields;
 
     // Section 3: Mute & Transitions
     // [0] seekMuteMs, [1] gracefulSteps, [2] gracefulTransitions, [3] gracefulVolume
@@ -688,11 +728,16 @@ ControllerES9018K2M.prototype.unregisterVolumeOverride = function() {
   self.logger.info('ES9018K2M: Unregistering volume override');
 
   try {
+    // Pass card: -1 to indicate clearing the override
     self.commandRouter.executeOnPlugin(
       'audio_interface',
       'alsa_controller',
       'setDeviceVolumeOverride',
-      {}
+      {
+        card: -1,
+        pluginType: '',
+        pluginName: ''
+      }
     );
     self.volumeOverrideRegistered = false;
     self.logger.info('ES9018K2M: Volume override unregistered');
@@ -729,6 +774,17 @@ ControllerES9018K2M.prototype.alsavolume = function(VolumeInteger) {
   self.currentVolume = newVolume;
   self.lastVolume = newVolume;
 
+  // Save immediately if rememberLastVolume enabled AND startup is complete
+  // Don't save during startup - Volumio calls alsavolume before our startup logic runs
+  if (self.rememberLastVolume && self.startupVolumeApplied) {
+    self.config.set('lastSavedVolume', newVolume);
+    self.config.save();
+    self.lastSavedVolume = newVolume;
+    self.logDebug('ES9018K2M: Volume saved: ' + newVolume);
+  } else if (self.rememberLastVolume && !self.startupVolumeApplied) {
+    self.logDebug('ES9018K2M: Volume change ignored during startup: ' + newVolume);
+  }
+
   // Push state back to Volumio so UI reflects the change
   self.commandRouter.volumioupdatevolume({
     vol: newVolume,
@@ -746,6 +802,16 @@ ControllerES9018K2M.prototype.retrievevolume = function() {
     vol: self.currentVolume,
     mute: self.currentMute
   });
+};
+
+// Called by Volumio when volume settings are updated (hardware mode)
+ControllerES9018K2M.prototype.updateVolumeSettings = function(data) {
+  var self = this;
+
+  // Volumio calls this after volume override is registered
+  // We acknowledge but don't need to act on it
+  self.logDebug('ES9018K2M: updateVolumeSettings called');
+  return libQ.resolve();
 };
 
 // ---------------------------------------------------------------------------
@@ -1400,12 +1466,17 @@ ControllerES9018K2M.prototype.saveDeviceDetection = function(data) {
 ControllerES9018K2M.prototype.saveVolumeControl = function(data) {
   var self = this;
 
-  // Volume mode - check if changed
+  // External volume toggle
+  var newExternalVolume = data.externalVolume || false;
+  var externalVolumeChanged = (newExternalVolume !== self.externalVolume);
+
+  // Volume mode - check if changed (only hardware or software now)
   var newVolumeMode = (data.volumeMode && data.volumeMode.value) || 'hardware';
   var volumeModeChanged = (newVolumeMode !== self.volumeMode);
 
-  self.volumeMode = newVolumeMode;
-  self.config.set('volumeMode', self.volumeMode);
+  // Save external volume setting
+  self.externalVolume = newExternalVolume;
+  self.config.set('externalVolume', self.externalVolume);
 
   // Card number - parse 'auto' or numeric value
   var cardInput = data.cardNumber || 'auto';
@@ -1438,28 +1509,57 @@ ControllerES9018K2M.prototype.saveVolumeControl = function(data) {
   self.rememberLastVolume = data.rememberLastVolume || false;
   self.config.set('rememberLastVolume', self.rememberLastVolume);
 
-  // Handle volume mode change
-  if (volumeModeChanged && self.deviceFound) {
-    if (self.volumeMode === 'hardware') {
-      // Switch from software to hardware
-      self.stopVolumeSync();
+  // Save volume mode
+  self.volumeMode = newVolumeMode;
+  self.config.set('volumeMode', self.volumeMode);
+
+  // Handle changes
+  if (self.deviceFound && (externalVolumeChanged || volumeModeChanged)) {
+    // Clean up current volume control first
+    if (self.volumeOverrideRegistered) {
+      self.unregisterVolumeOverride();
+    }
+    self.stopVolumeSync();
+
+    if (self.externalVolume) {
+      // External volume enabled - plugin manages DAC features only
+      self.commandRouter.pushToastMessage('info',
+        self.getI18nString('PLUGIN_NAME'),
+        self.getI18nString('EXTERNAL_VOLUME_CHANGED_ON'));
+    } else if (self.volumeMode === 'hardware') {
       self.registerVolumeOverride();
       self.commandRouter.pushToastMessage('info',
         self.getI18nString('PLUGIN_NAME'),
         self.getI18nString('VOLUME_MODE_CHANGED_HW'));
     } else {
-      // Switch from hardware to software
-      self.unregisterVolumeOverride();
       self.startVolumeSync();
       self.commandRouter.pushToastMessage('info',
         self.getI18nString('PLUGIN_NAME'),
         self.getI18nString('VOLUME_MODE_CHANGED_SW'));
     }
+
+    // Push updated UI config to refresh visibility states
+    self.refreshUIConfig();
   } else {
     self.commandRouter.pushToastMessage('success',
       self.getI18nString('PLUGIN_NAME'),
       self.getI18nString('SETTINGS_SAVED'));
   }
+};
+
+// Push updated UI config to refresh field visibility
+ControllerES9018K2M.prototype.refreshUIConfig = function() {
+  var self = this;
+
+  setTimeout(function() {
+    self.getUIConfig()
+      .then(function(uiconf) {
+        self.commandRouter.broadcastMessage('pushUiConfig', uiconf);
+      })
+      .fail(function(err) {
+        self.logger.error('ES9018K2M: Failed to refresh UI config: ' + err);
+      });
+  }, 100);
 };
 
 ControllerES9018K2M.prototype.saveMuteSettings = function(data) {

@@ -2,8 +2,7 @@
   "PLUGIN_NAME": "ES9018K2M DAC Control",
 
   "PREREQUISITES": "Setup Requirements",
-  "PREREQUISITES_DESC": "This plugin requires specific Volumio settings to be configured.",
-  "PREREQ_NOTICE": "Before using this plugin: Go to Volumio Settings > Playback Options. Enable I2S DAC and select 'R-PI DAC' as DAC Model. Set Mixer Type to 'None'. Save and Reboot. The plugin will not detect your DAC until this is configured.",
+  "PREREQUISITES_DESC": "Go to Volumio Settings > Playback Options. Enable I2S DAC and select R-PI DAC as DAC Model. For plugin volume control, set Mixer Type to None. Save and Reboot.",
 
   "DEVICE_DETECTION": "Device Detection",
   "CHECK_DEVICE": "Check Device",
@@ -20,9 +19,16 @@
   "DEBUG_LOGGING": "Debug Logging",
   "DEBUG_LOGGING_DOC": "Enable verbose logging for troubleshooting. Check journalctl for output. Default: off.",
 
+  "EXTERNAL_VOLUME": "External Volume Device",
+  "EXTERNAL_VOLUME_DESC": "Enable if volume is controlled by external hardware such as Allo Relay Attenuator, pre-amplifier, or AV receiver. When enabled, plugin manages DAC features only (filters, DPLL, balance). Seek mute and graceful transitions still work.",
+  "EXTERNAL_VOLUME_ENABLED": "Use External Volume Device",
+  "EXTERNAL_VOLUME_ENABLED_DOC": "Plugin will not register volume control. Volume slider controlled by external device or other plugin.",
+  "EXTERNAL_VOLUME_CHANGED_ON": "External volume enabled. Plugin manages DAC features only.",
+  "EXTERNAL_VOLUME_CHANGED_OFF": "External volume disabled. Configure volume control below.",
+
   "VOLUME_CONTROL": "Volume Control",
-  "VOLUME_MODE": "Volume Control Mode",
-  "VOLUME_MODE_DOC": "Hardware: Registers as hardware mixer, enables volume slider when Mixer Type is None (recommended). Software: Uses Volumio callbacks, requires existing mixer.",
+  "VOLUME_MODE": "Volume Mode",
+  "VOLUME_MODE_DOC": "Hardware: Plugin controls volume via DAC registers, enables slider with Mixer Type None (recommended). Software: Volumio mixer controls volume, plugin mirrors to DAC.",
   "VOLUME_MODE_SOFTWARE": "Software (Callback)",
   "VOLUME_MODE_HARDWARE": "Hardware (Override)",
   "VOLUME_MODE_CHANGED_HW": "Switched to Hardware volume mode. Volume slider should now appear.",
