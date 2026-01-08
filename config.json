@@ -7,6 +7,10 @@
     "type": "number",
     "value": 72
   },
+  "externalVolume": {
+    "type": "boolean",
+    "value": false
+  },
   "volumeMode": {
     "type": "string",
     "value": "hardware"

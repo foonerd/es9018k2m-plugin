@@ -9,14 +9,7 @@
       "label": "TRANSLATE.PREREQUISITES",
       "icon": "fa-info-circle",
       "description": "TRANSLATE.PREREQUISITES_DESC",
-      "content": [
-        {
-          "id": "prereq_notice",
-          "element": "text",
-          "label": "",
-          "value": "TRANSLATE.PREREQ_NOTICE"
-        }
-      ]
+      "content": []
     },
     {
       "id": "device_detection",
@@ -105,6 +98,7 @@
       "element": "section",
       "label": "TRANSLATE.VOLUME_CONTROL",
       "icon": "fa-sliders",
+      "description": "TRANSLATE.EXTERNAL_VOLUME_DESC",
       "onSave": {
         "type": "controller",
         "endpoint": "system_hardware/es9018k2m",
@@ -112,19 +106,29 @@
       },
       "saveButton": {
         "label": "TRANSLATE.SAVE",
-        "data": ["volumeMode", "cardNumber", "startMuted", "safeStartupEnabled", "safeStartupVolume", "rememberLastVolume"]
+        "data": ["externalVolume", "volumeMode", "cardNumber", "startMuted", "safeStartupEnabled", "safeStartupVolume", "rememberLastVolume"]
       },
       "content": [
+        {
+          "id": "externalVolume",
+          "element": "switch",
+          "label": "TRANSLATE.EXTERNAL_VOLUME_ENABLED",
+          "doc": "TRANSLATE.EXTERNAL_VOLUME_ENABLED_DOC",
+          "value": false
+        },
         {
           "id": "volumeMode",
           "element": "select",
           "label": "TRANSLATE.VOLUME_MODE",
           "doc": "TRANSLATE.VOLUME_MODE_DOC",
           "value": { "value": "hardware", "label": "Hardware (Override)" },
+          "visibleIf": {
+            "field": "externalVolume",
+            "value": false
+          },
           "options": [
             { "value": "hardware", "label": "TRANSLATE.VOLUME_MODE_HARDWARE" },
-            { "value": "software", "label": "TRANSLATE.VOLUME_MODE_SOFTWARE" },
-            { "value": "passthrough", "label": "TRANSLATE.VOLUME_MODE_PASSTHROUGH" }
+            { "value": "software", "label": "TRANSLATE.VOLUME_MODE_SOFTWARE" }
           ]
         },
         {
@@ -135,8 +139,8 @@
           "doc": "TRANSLATE.CARD_NUMBER_DOC",
           "value": "auto",
           "visibleIf": {
-            "field": "volumeMode",
-            "value": "hardware"
+            "field": "externalVolume",
+            "value": false
           },
           "attributes": [
             { "placeholder": "auto" }
@@ -149,8 +153,8 @@
           "doc": "TRANSLATE.START_MUTED_DOC",
           "value": false,
           "visibleIf": {
-            "field": "volumeMode",
-            "value": "hardware"
+            "field": "externalVolume",
+            "value": false
           }
         },
         {
@@ -160,8 +164,8 @@
           "doc": "TRANSLATE.SAFE_STARTUP_ENABLED_DOC",
           "value": false,
           "visibleIf": {
-            "field": "volumeMode",
-            "value": "hardware"
+            "field": "externalVolume",
+            "value": false
           }
         },
         {
@@ -172,8 +176,8 @@
           "doc": "TRANSLATE.SAFE_STARTUP_VOLUME_DOC",
           "value": 25,
           "visibleIf": {
-            "field": "safeStartupEnabled",
-            "value": true
+            "field": "externalVolume",
+            "value": false
           },
           "attributes": [
             { "placeholder": "25" },
@@ -188,8 +192,8 @@
           "doc": "TRANSLATE.REMEMBER_LAST_VOLUME_DOC",
           "value": false,
           "visibleIf": {
-            "field": "volumeMode",
-            "value": "hardware"
+            "field": "externalVolume",
+            "value": false
           }
         }
       ]
@@ -247,7 +251,11 @@
           "element": "switch",
           "label": "TRANSLATE.GRACEFUL_VOLUME",
           "doc": "TRANSLATE.GRACEFUL_VOLUME_DOC",
-          "value": true
+          "value": true,
+          "visibleIf": {
+            "field": "externalVolume",
+            "value": false
+          }
         }
       ]
     },

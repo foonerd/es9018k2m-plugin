@@ -155,6 +155,7 @@ For architecture, register configuration, and implementation details, see [TECHN
 - Added Pass-through volume mode for external attenuators/pre-amps
 - Extended prerequisites documentation for different configurations
 - Standalone DAC, Allo Relay Attenuator, external pre-amp use cases
+- Added updateVolumeSettings method for hardware volume override compatibility
 
 ### v1.2.4
 - Hardware volume mode as default (recommended for most users)
