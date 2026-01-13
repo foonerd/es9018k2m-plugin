@@ -59,6 +59,9 @@ function ControllerES9018K2M(context) {
   self.lBal = 0;
   self.rBal = 0;
 
+  // Input source selection
+  self.inputSource = 'i2s';  // 'i2s', 'spdif1', 'spdif2'
+
   // Register shadows
   self.reg7 = 0x80;   // General settings (mute, filters)
   self.reg12 = 0x5A;  // DPLL settings
@@ -397,6 +400,9 @@ ControllerES9018K2M.prototype.loadConfig = function() {
   } else if (balance < 0) {
     self.rBal = -balance;
   }
+
+  // Input source selection
+  self.inputSource = self.config.get('inputSource', 'i2s');
 };
 
 ControllerES9018K2M.prototype.logDebug = function(msg) {
@@ -502,6 +508,9 @@ ControllerES9018K2M.prototype.getUIConfig = function() {
     // Section 6: DPLL
     uiconf.sections[6].content[0].value = self.getDpllOption(self.config.get('i2sDpll', 0x50));
     uiconf.sections[6].content[1].value = self.getDpllOption(self.config.get('dsdDpll', 0x0A));
+
+    // Section 7: Input Source
+    uiconf.sections[7].content[0].value = self.getInputSourceOption(self.config.get('inputSource', 'i2s'));
 
     defer.resolve(uiconf);
   })
@@ -655,6 +664,7 @@ ControllerES9018K2M.prototype.initDevice = function() {
 ControllerES9018K2M.prototype.applySettings = function() {
   var self = this;
 
+  self.setInputSource(self.config.get('inputSource', 'i2s'));
   self.setFirFilter(self.config.get('fir', 1));
   self.setIirFilter(self.config.get('iir', 0));
   self.setDeemphasis(self.config.get('deemphasis', 0x4A));
@@ -662,6 +672,44 @@ ControllerES9018K2M.prototype.applySettings = function() {
     self.config.get('i2sDpll', 0x50),
     self.config.get('dsdDpll', 0x0A)
   );
+};
+
+// ---------------------------------------------------------------------------
+// Input Source Selection
+// ---------------------------------------------------------------------------
+
+ControllerES9018K2M.prototype.setInputSource = function(mode) {
+  var self = this;
+
+  if (!self.deviceFound) {
+    return;
+  }
+
+  if (self.inputSource === mode) {
+    return;
+  }
+
+  self.logger.info('ES9018K2M: Switching input to: ' + mode);
+  self.setMuteSync(true);
+
+  // Register 0x01: Input configuration
+  // Register 0x0B: Channel mapping (SPDIF routing)
+  if (mode === 'i2s') {
+    // I2S input, 32-bit
+    self.i2cWriteSync(0x01, 0xC4);
+    self.i2cWriteSync(0x0B, 0x32);
+  } else if (mode === 'spdif1') {
+    // SPDIF input from GPIO1
+    self.i2cWriteSync(0x0B, 0x32);
+    self.i2cWriteSync(0x01, 0xC5);
+  } else if (mode === 'spdif2') {
+    // SPDIF input from GPIO2
+    self.i2cWriteSync(0x0B, 0x42);
+    self.i2cWriteSync(0x01, 0xC5);
+  }
+
+  self.setMuteSync(false);
+  self.inputSource = mode;
 };
 
 // ---------------------------------------------------------------------------
@@ -1640,6 +1688,19 @@ ControllerES9018K2M.prototype.saveDpllSettings = function(data) {
     self.getI18nString('SETTINGS_SAVED'));
 };
 
+ControllerES9018K2M.prototype.saveInputSource = function(data) {
+  var self = this;
+
+  var newSource = (data.inputSource && data.inputSource.value) || 'i2s';
+
+  self.setInputSource(newSource);
+  self.config.set('inputSource', newSource);
+
+  self.commandRouter.pushToastMessage('success',
+    self.getI18nString('PLUGIN_NAME'),
+    self.getI18nString('INPUT_SOURCE_CHANGED'));
+};
+
 ControllerES9018K2M.prototype.resetDevice = function() {
   var self = this;
 
@@ -1669,6 +1730,7 @@ ControllerES9018K2M.prototype.resetDevice = function() {
   self.config.set('gracefulTransitions', true);
   self.config.set('gracefulVolume', true);
   self.config.set('debugLogging', false);
+  self.config.set('inputSource', 'i2s');
 
   // Unregister volume override if active
   if (self.volumeOverrideRegistered) {
@@ -1727,6 +1789,16 @@ ControllerES9018K2M.prototype.getDpllOption = function(value) {
   var labels = ['Off', '1', '2', '3', '4', '5', '6', '7',
                 '8', '9', '10', '11', '12', '13', '14', '15'];
   return { value: value, label: labels[level] || 'Unknown' };
+};
+
+ControllerES9018K2M.prototype.getInputSourceOption = function(value) {
+  var self = this;
+  var options = [
+    { value: 'i2s', label: self.getI18nString('INPUT_SOURCE_I2S') },
+    { value: 'spdif1', label: self.getI18nString('INPUT_SOURCE_SPDIF1') },
+    { value: 'spdif2', label: self.getI18nString('INPUT_SOURCE_SPDIF2') }
+  ];
+  return options.find(function(o) { return o.value === value; }) || options[0];
 };
 
 // ---------------------------------------------------------------------------

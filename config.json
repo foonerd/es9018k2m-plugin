@@ -82,5 +82,9 @@
   "debugLogging": {
     "type": "boolean",
     "value": false
+  },
+  "inputSource": {
+    "type": "string",
+    "value": "i2s"
   }
 }

@@ -76,6 +76,15 @@
   "DSD_DPLL": "DSD DPLL",
   "DSD_DPLL_DOC": "DPLL bandwidth for DSD sources.",
 
+  "INPUT_SOURCE": "Input Source",
+  "INPUT_SOURCE_DESC": "Select DAC input source. Use I2S for Raspberry Pi audio. SPDIF inputs allow external digital sources to play through the DAC.",
+  "INPUT_SOURCE_SELECT": "Input Source",
+  "INPUT_SOURCE_SELECT_DOC": "I2S: Audio from Raspberry Pi (default). SPDIF1/SPDIF2: External digital audio sources via coaxial or optical input.",
+  "INPUT_SOURCE_I2S": "I2S (Raspberry Pi)",
+  "INPUT_SOURCE_SPDIF1": "SPDIF 1 (GPIO1)",
+  "INPUT_SOURCE_SPDIF2": "SPDIF 2 (GPIO2)",
+  "INPUT_SOURCE_CHANGED": "Input source changed",
+
   "SAVE": "Save",
   "CONFIRM": "Confirm",
   "CONFIRM_RESET": "Reset all DAC settings to factory defaults?",

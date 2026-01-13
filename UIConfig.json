@@ -431,6 +431,36 @@
           ]
         }
       ]
+    },
+    {
+      "id": "input_source",
+      "element": "section",
+      "label": "TRANSLATE.INPUT_SOURCE",
+      "icon": "fa-sign-in",
+      "description": "TRANSLATE.INPUT_SOURCE_DESC",
+      "onSave": {
+        "type": "controller",
+        "endpoint": "system_hardware/es9018k2m",
+        "method": "saveInputSource"
+      },
+      "saveButton": {
+        "label": "TRANSLATE.SAVE",
+        "data": ["inputSource"]
+      },
+      "content": [
+        {
+          "id": "inputSource",
+          "element": "select",
+          "label": "TRANSLATE.INPUT_SOURCE_SELECT",
+          "doc": "TRANSLATE.INPUT_SOURCE_SELECT_DOC",
+          "value": { "value": "i2s", "label": "I2S (Raspberry Pi)" },
+          "options": [
+            { "value": "i2s", "label": "TRANSLATE.INPUT_SOURCE_I2S" },
+            { "value": "spdif1", "label": "TRANSLATE.INPUT_SOURCE_SPDIF1" },
+            { "value": "spdif2", "label": "TRANSLATE.INPUT_SOURCE_SPDIF2" }
+          ]
+        }
+      ]
     }
   ]
 }
